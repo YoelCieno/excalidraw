@@ -5,9 +5,11 @@ import {
   ExcalidrawGenericElement,
   NonDeleted,
   TextAlign,
-  FontFamily,
   GroupId,
   VerticalAlign,
+  Arrowhead,
+  ExcalidrawFreeDrawElement,
+  FontFamilyValues,
 } from "../element/types";
 import { measureText, getFontString } from "../utils";
 import { randomInteger, randomId } from "../random";
@@ -24,6 +26,7 @@ type ElementConstructorOpts = MarkOptional<
   | "height"
   | "angle"
   | "groupIds"
+  | "boundElementIds"
   | "seed"
   | "version"
   | "versionNonce"
@@ -45,6 +48,8 @@ const _newElementBase = <T extends ExcalidrawElement>(
     height = 0,
     angle = 0,
     groupIds = [],
+    strokeSharpness,
+    boundElementIds = null,
     ...rest
   }: ElementConstructorOpts & Omit<Partial<ExcalidrawGenericElement>, "type">,
 ) => ({
@@ -63,10 +68,12 @@ const _newElementBase = <T extends ExcalidrawElement>(
   roughness,
   opacity,
   groupIds,
+  strokeSharpness,
   seed: rest.seed ?? randomInteger(),
   version: rest.version || 1,
   versionNonce: rest.versionNonce ?? 0,
   isDeleted: false as false,
+  boundElementIds,
 });
 
 export const newElement = (
@@ -77,7 +84,7 @@ export const newElement = (
   _newElementBase<ExcalidrawGenericElement>(opts.type, opts);
 
 /** computes element x/y offset based on textAlign/verticalAlign */
-function getTextElementPositionOffsets(
+const getTextElementPositionOffsets = (
   opts: {
     textAlign: ExcalidrawTextElement["textAlign"];
     verticalAlign: ExcalidrawTextElement["verticalAlign"];
@@ -86,7 +93,7 @@ function getTextElementPositionOffsets(
     width: number;
     height: number;
   },
-) {
+) => {
   return {
     x:
       opts.textAlign === "center"
@@ -96,13 +103,13 @@ function getTextElementPositionOffsets(
         : 0,
     y: opts.verticalAlign === "middle" ? metrics.height / 2 : 0,
   };
-}
+};
 
 export const newTextElement = (
   opts: {
     text: string;
     fontSize: number;
-    fontFamily: FontFamily;
+    fontFamily: FontFamilyValues;
     textAlign: TextAlign;
     verticalAlign: VerticalAlign;
   } & ElementConstructorOpts,
@@ -125,7 +132,6 @@ export const newTextElement = (
     },
     {},
   );
-
   return textElement;
 };
 
@@ -144,10 +150,10 @@ const getAdjustedDimensions = (
     height: nextHeight,
     baseline: nextBaseline,
   } = measureText(nextText, getFontString(element));
-
   const { textAlign, verticalAlign } = element;
 
-  let x, y;
+  let x: number;
+  let y: number;
 
   if (textAlign === "center" && verticalAlign === "middle") {
     const prevMetrics = measureText(element.text, getFontString(element));
@@ -207,21 +213,43 @@ export const updateTextElement = (
   });
 };
 
+export const newFreeDrawElement = (
+  opts: {
+    type: "freedraw";
+    points?: ExcalidrawFreeDrawElement["points"];
+    simulatePressure: boolean;
+  } & ElementConstructorOpts,
+): NonDeleted<ExcalidrawFreeDrawElement> => {
+  return {
+    ..._newElementBase<ExcalidrawFreeDrawElement>(opts.type, opts),
+    points: opts.points || [],
+    pressures: [],
+    simulatePressure: opts.simulatePressure,
+    lastCommittedPoint: null,
+  };
+};
+
 export const newLinearElement = (
   opts: {
     type: ExcalidrawLinearElement["type"];
-    lastCommittedPoint?: ExcalidrawLinearElement["lastCommittedPoint"];
+    startArrowhead: Arrowhead | null;
+    endArrowhead: Arrowhead | null;
+    points?: ExcalidrawLinearElement["points"];
   } & ElementConstructorOpts,
 ): NonDeleted<ExcalidrawLinearElement> => {
   return {
     ..._newElementBase<ExcalidrawLinearElement>(opts.type, opts),
-    points: [],
-    lastCommittedPoint: opts.lastCommittedPoint || null,
+    points: opts.points || [],
+    lastCommittedPoint: null,
+    startBinding: null,
+    endBinding: null,
+    startArrowhead: opts.startArrowhead,
+    endArrowhead: opts.endArrowhead,
   };
 };
 
 // Simplified deep clone for the purpose of cloning ExcalidrawElement only
-//  (doesn't clone Date, RegExp, Map, Set, Typed arrays etc.)
+// (doesn't clone Date, RegExp, Map, Set, Typed arrays etc.)
 //
 // Adapted from https://github.com/lukeed/klona
 export const deepCopyElement = (val: any, depth: number = 0) => {
@@ -279,7 +307,19 @@ export const duplicateElement = <TElement extends Mutable<ExcalidrawElement>>(
   overrides?: Partial<TElement>,
 ): TElement => {
   let copy: TElement = deepCopyElement(element);
-  copy.id = randomId();
+  if (process.env.NODE_ENV === "test") {
+    copy.id = `${copy.id}_copy`;
+    // `window.h` may not be defined in some unit tests
+    if (
+      window.h?.app
+        ?.getSceneElementsIncludingDeleted()
+        .find((el) => el.id === copy.id)
+    ) {
+      copy.id += "_copy";
+    }
+  } else {
+    copy.id = randomId();
+  }
   copy.seed = randomInteger();
   copy.groupIds = getNewGroupIdsForDuplication(
     copy.groupIds,

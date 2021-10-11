@@ -26,6 +26,7 @@ export {
   actionZoomOut,
   actionResetZoom,
   actionZoomToFit,
+  actionToggleTheme,
 } from "./actionCanvas";
 
 export { actionFinalize } from "./actionFinalize";
@@ -33,8 +34,8 @@ export { actionFinalize } from "./actionFinalize";
 export {
   actionChangeProjectName,
   actionChangeExportBackground,
-  actionSaveScene,
-  actionSaveAsScene,
+  actionSaveToActiveFile,
+  actionSaveFileToDisk,
   actionLoadScene,
 } from "./actionExport";
 
@@ -49,3 +50,33 @@ export {
 export { actionGroup, actionUngroup } from "./actionGroup";
 
 export { actionGoToCollaborator } from "./actionNavigate";
+
+export { actionAddToLibrary } from "./actionAddToLibrary";
+
+export {
+  actionAlignTop,
+  actionAlignBottom,
+  actionAlignLeft,
+  actionAlignRight,
+  actionAlignVerticallyCentered,
+  actionAlignHorizontallyCentered,
+} from "./actionAlign";
+
+export {
+  distributeHorizontally,
+  distributeVertically,
+} from "./actionDistribute";
+
+export { actionFlipHorizontal, actionFlipVertical } from "./actionFlip";
+
+export {
+  actionCopy,
+  actionCut,
+  actionCopyAsPng,
+  actionCopyAsSvg,
+} from "./actionClipboard";
+
+export { actionToggleGridMode } from "./actionToggleGridMode";
+export { actionToggleZenMode } from "./actionToggleZenMode";
+
+export { actionToggleStats } from "./actionToggleStats";

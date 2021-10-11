@@ -4,20 +4,15 @@ import React from "react";
 
 type AvatarProps = {
   children: string;
-  className?: string;
   onClick: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   color: string;
+  border: string;
 };
 
-export const Avatar = ({
-  children,
-  className,
-  color,
-  onClick,
-}: AvatarProps) => (
+export const Avatar = ({ children, color, border, onClick }: AvatarProps) => (
   <div
-    className={`Avatar ${className}`}
-    style={{ background: color }}
+    className="Avatar"
+    style={{ background: color, border: `1px solid ${border}` }}
     onClick={onClick}
   >
     {children}

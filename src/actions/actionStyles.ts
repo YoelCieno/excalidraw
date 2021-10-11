@@ -3,7 +3,8 @@ import {
   isExcalidrawElement,
   redrawTextBoundingBox,
 } from "../element";
-import { KEYS } from "../keys";
+import { CODES, KEYS } from "../keys";
+import { t } from "../i18n";
 import { register } from "./register";
 import { mutateElement, newElementWith } from "../element/mutateElement";
 import {
@@ -12,7 +13,8 @@ import {
   DEFAULT_TEXT_ALIGN,
 } from "../constants";
 
-let copiedStyles: string = "{}";
+// `copiedStyles` is exported only for tests.
+export let copiedStyles: string = "{}";
 
 export const actionCopyStyles = register({
   name: "copyStyles",
@@ -22,13 +24,16 @@ export const actionCopyStyles = register({
       copiedStyles = JSON.stringify(element);
     }
     return {
+      appState: {
+        ...appState,
+        toastMessage: t("toast.copyStyles"),
+      },
       commitToHistory: false,
     };
   },
   contextItemLabel: "labels.copyStyles",
   keyTest: (event) =>
-    event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === "C",
-  contextMenuOrder: 0,
+    event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.C,
 });
 
 export const actionPasteStyles = register({
@@ -67,6 +72,5 @@ export const actionPasteStyles = register({
   },
   contextItemLabel: "labels.pasteStyles",
   keyTest: (event) =>
-    event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === "V",
-  contextMenuOrder: 1,
+    event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.V,
 });
