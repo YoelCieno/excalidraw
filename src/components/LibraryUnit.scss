@@ -1,16 +1,57 @@
+@import "../css/variables.module";
+
 .excalidraw {
   .library-unit {
     align-items: center;
-    border: 1px solid var(--button-gray-2);
+    border: 1px solid transparent;
     display: flex;
     justify-content: center;
     position: relative;
-    width: 63px;
-    height: 63px; // match width
+    width: 55px;
+    height: 55px;
+    box-sizing: border-box;
+    border-radius: var(--border-radius-lg);
+
+    svg {
+      // to prevent clicks on links and such
+      pointer-events: none;
+    }
+
+    &--hover {
+      border-color: var(--color-primary);
+    }
+
+    &--selected {
+      border-color: var(--color-primary);
+      border-width: 1px;
+    }
+
+    &--skeleton {
+      opacity: 0.5;
+      background: linear-gradient(
+        -45deg,
+        var(--color-gray-10),
+        var(--color-gray-20),
+        var(--color-gray-10)
+      );
+      background-size: 200% 200%;
+      animation: library-unit__skeleton-opacity-animation 0.2s linear;
+    }
+  }
+
+  &.theme--dark .library-unit--skeleton {
+    background-image: linear-gradient(
+      -45deg,
+      var(--color-gray-100),
+      var(--color-gray-80),
+      var(--color-gray-100)
+    );
   }
 
   .library-unit__dragger {
     display: flex;
+    align-items: center;
+    justify-content: center;
     height: 100%;
     width: 100%;
   }
@@ -22,9 +63,9 @@
     max-width: 100%;
   }
 
-  .library-unit__removeFromLibrary,
-  .library-unit__removeFromLibrary:hover,
-  .library-unit__removeFromLibrary:active {
+  .library-unit__checkbox-container,
+  .library-unit__checkbox-container:hover,
+  .library-unit__checkbox-container:active {
     align-items: center;
     background: none;
     border: none;
@@ -32,10 +73,49 @@
     display: flex;
     justify-content: center;
     margin: 0;
-    padding: 0;
+    padding: 0.5rem;
     position: absolute;
-    right: 5px;
-    top: 5px;
+    left: 2rem;
+    bottom: 2rem;
+    cursor: pointer;
+
+    input {
+      cursor: pointer;
+    }
+  }
+
+  .library-unit__checkbox {
+    position: absolute;
+    top: 0.125rem;
+    right: 0.125rem;
+    margin: 0;
+
+    .Checkbox-box {
+      margin: 0;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 4px;
+      background-color: var(--color-primary-light);
+      border: 1px solid var(--color-primary);
+      box-shadow: none !important;
+      padding: 2px;
+    }
+
+    &.Checkbox:hover {
+      .Checkbox-box {
+        background-color: var(--color-primary-light);
+      }
+    }
+
+    &.is-checked {
+      .Checkbox-box {
+        background-color: var(--color-primary) !important;
+
+        svg {
+          color: var(--color-primary-light);
+        }
+      }
+    }
   }
 
   .library-unit__removeFromLibrary > svg {
@@ -43,29 +123,41 @@
     width: 16px;
   }
 
-  .library-unit__pulse {
+  .library-unit__adder {
     transform: scale(1);
-    animation: library-unit__pulse-animation 1s ease-in infinite;
+    animation: library-unit__adder-animation 1s ease-in infinite;
+
+    position: absolute;
+    width: 1.5rem;
+    height: 1.5rem;
+    background-color: var(--color-primary);
+    border-radius: var(--border-radius-md);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    pointer-events: none;
+
+    svg {
+      color: var(--color-primary-light);
+      width: 1rem;
+      height: 1rem;
+    }
   }
 
-  .library-unit__adder {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 20px;
-    height: 20px;
-    margin-left: -10px;
-    margin-top: -10px;
-    pointer-events: none;
+  .library-unit:active .library-unit__adder {
+    animation: none;
+    transform: scale(0.8);
   }
 
   .library-unit__active {
     cursor: pointer;
   }
 
-  @keyframes library-unit__pulse-animation {
+  @keyframes library-unit__adder-animation {
     0% {
-      transform: scale(0.95);
+      transform: scale(0.85);
     }
 
     50% {
@@ -73,7 +165,21 @@
     }
 
     100% {
-      transform: scale(0.95);
+      transform: scale(0.85);
+    }
+  }
+
+  @keyframes library-unit__skeleton-opacity-animation {
+    0% {
+      opacity: 0;
+    }
+
+    75% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 0.5;
     }
   }
 }

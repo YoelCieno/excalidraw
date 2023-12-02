@@ -1,6 +1,7 @@
 {
   "labels": {
     "paste": "Қою",
+    "pasteAsPlaintext": "",
     "pasteCharts": "Диаграммаларды қою",
     "selectAll": "Бәрін таңдау",
     "multiSelect": "",
@@ -9,6 +10,7 @@
     "copy": "Көшіру",
     "copyAsPng": "",
     "copyAsSvg": "",
+    "copyText": "",
     "bringForward": "",
     "sendToBack": "",
     "bringToFront": "",
@@ -20,10 +22,6 @@
     "background": "",
     "fill": "",
     "strokeWidth": "",
-    "strokeShape": "",
-    "strokeShape_gel": "",
-    "strokeShape_fountain": "",
-    "strokeShape_brush": "",
     "strokeStyle": "",
     "strokeStyle_solid": "",
     "strokeStyle_dashed": "",
@@ -39,12 +37,9 @@
     "arrowhead_arrow": "Нұсқар",
     "arrowhead_bar": "Тосқауыл",
     "arrowhead_dot": "Нүкте",
+    "arrowhead_triangle": "",
     "fontSize": "Қаріп өлшемі",
     "fontFamily": "Қаріп тобы",
-    "onlySelected": "",
-    "withBackground": "",
-    "exportEmbedScene": "",
-    "exportEmbedScene_details": "",
     "addWatermark": "",
     "handDrawn": "",
     "normal": "Қалыпты",
@@ -55,6 +50,7 @@
     "veryLarge": "Өте үлкен",
     "solid": "",
     "hachure": "",
+    "zigzag": "",
     "crossHatch": "",
     "thin": "",
     "bold": "",
@@ -67,6 +63,7 @@
     "cartoonist": "",
     "fileTitle": "Файл атауы",
     "colorPicker": "",
+    "canvasColors": "",
     "canvasBackground": "",
     "drawingCanvas": "",
     "layers": "",
@@ -99,22 +96,53 @@
     "flipHorizontal": "",
     "flipVertical": "",
     "viewMode": "",
-    "toggleExportColorScheme": "",
     "share": "",
     "showStroke": "",
     "showBackground": "",
-    "toggleTheme": ""
+    "toggleTheme": "",
+    "personalLib": "",
+    "excalidrawLib": "",
+    "decreaseFontSize": "",
+    "increaseFontSize": "",
+    "unbindText": "",
+    "bindText": "",
+    "createContainerFromText": "",
+    "link": {
+      "edit": "",
+      "editEmbed": "",
+      "create": "",
+      "createEmbed": "",
+      "label": "",
+      "labelEmbed": "",
+      "empty": ""
+    },
+    "lineEditor": {
+      "edit": "",
+      "exit": ""
+    },
+    "elementLock": {
+      "lock": "",
+      "unlock": "",
+      "lockAll": "",
+      "unlockAll": ""
+    },
+    "statusPublished": "",
+    "sidebarLock": "",
+    "selectAllElementsInFrame": "",
+    "removeAllElementsFromFrame": "",
+    "eyeDropper": ""
+  },
+  "library": {
+    "noItems": "",
+    "hint_emptyLibrary": "",
+    "hint_emptyPrivateLibrary": ""
   },
   "buttons": {
     "clearReset": "",
     "exportJSON": "",
     "exportImage": "",
-    "export": "Экспорт",
-    "exportToPng": "",
-    "exportToSvg": "",
+    "export": "",
     "copyToClipboard": "",
-    "copyPngToClipboard": "",
-    "scale": "",
     "save": "",
     "saveAs": "",
     "load": "",
@@ -136,7 +164,16 @@
     "darkMode": "",
     "lightMode": "",
     "zenMode": "",
-    "exitZenMode": ""
+    "objectsSnapMode": "",
+    "exitZenMode": "",
+    "cancel": "",
+    "clear": "",
+    "remove": "",
+    "embed": "",
+    "publishLibrary": "",
+    "submit": "",
+    "confirm": "",
+    "embeddableInteractionButton": ""
   },
   "alerts": {
     "clearReset": "",
@@ -150,7 +187,6 @@
     "uploadedSecurly": "",
     "loadSceneOverridePrompt": "",
     "collabStopOverridePrompt": "",
-    "errorLoadingLibrary": "",
     "errorAddingToLibrary": "",
     "errorRemovingFromLibrary": "",
     "confirmAddLibrary": "",
@@ -158,10 +194,35 @@
     "cannotRestoreFromImage": "",
     "invalidSceneUrl": "",
     "resetLibrary": "",
-    "invalidEncryptionKey": ""
+    "removeItemsFromsLibrary": "",
+    "invalidEncryptionKey": "",
+    "collabOfflineWarning": ""
+  },
+  "errors": {
+    "unsupportedFileType": "",
+    "imageInsertError": "Суретті жүктеу мүмкін болмады. Кейінірек қайталап көріңіз...",
+    "fileTooBig": "Файл өте үлкен. Максималды рұқсат етілген көлем {{maxSize}}.",
+    "svgImageInsertError": "",
+    "failedToFetchImage": "",
+    "invalidSVGString": "",
+    "cannotResolveCollabServer": "",
+    "importLibraryError": "",
+    "collabSaveFailed": "",
+    "collabSaveFailed_sizeExceeded": "",
+    "brave_measure_text_error": {
+      "line1": "",
+      "line2": "",
+      "line3": "",
+      "line4": ""
+    },
+    "libraryElementTypeError": {
+      "embeddable": "",
+      "image": ""
+    }
   },
   "toolBar": {
     "selection": "",
+    "image": "Суретті қою",
     "rectangle": "",
     "diamond": "",
     "ellipse": "",
@@ -170,7 +231,15 @@
     "freedraw": "",
     "text": "Мәтін",
     "library": "",
-    "lock": ""
+    "lock": "",
+    "penMode": "",
+    "link": "",
+    "eraser": "",
+    "frame": "",
+    "embeddable": "",
+    "laser": "",
+    "hand": "",
+    "extraTools": ""
   },
   "headings": {
     "canvasActions": "",
@@ -178,18 +247,28 @@
     "shapes": ""
   },
   "hints": {
+    "canvasPanning": "",
     "linearElement": "",
     "freeDraw": "",
     "text": "",
+    "embeddable": "",
     "text_selected": "",
     "text_editing": "",
     "linearElementMulti": "",
     "lockAngle": "",
     "resize": "",
+    "resizeImage": "",
     "rotate": "",
     "lineEditor_info": "",
     "lineEditor_pointSelected": "",
-    "lineEditor_nothingSelected": ""
+    "lineEditor_nothingSelected": "",
+    "placeImage": "",
+    "publishLibrary": "",
+    "bindTextToElement": "",
+    "deepBoxSelect": "",
+    "eraserRevert": "",
+    "firefox_clipboard_write": "",
+    "disableSnapping": ""
   },
   "canvasError": {
     "cannotShowPreview": "",
@@ -197,16 +276,11 @@
     "canvasTooBigTip": ""
   },
   "errorSplash": {
-    "headingMain_pre": "",
-    "headingMain_button": "",
+    "headingMain": "",
     "clearCanvasMessage": "",
-    "clearCanvasMessage_button": "",
     "clearCanvasCaveat": "",
-    "trackedToSentry_pre": "",
-    "trackedToSentry_post": "",
-    "openIssueMessage_pre": "",
-    "openIssueMessage_button": "",
-    "openIssueMessage_post": "",
+    "trackedToSentry": "",
+    "openIssueMessage": "",
     "sceneContent": ""
   },
   "roomDialog": {
@@ -236,25 +310,94 @@
   "helpDialog": {
     "blog": "Біздің блогты оқу",
     "click": "шерту",
+    "deepSelect": "",
+    "deepBoxSelect": "",
     "curvedArrow": "Майысқан нұсқар",
     "curvedLine": "Майысқан сызық",
     "documentation": "Құжаттама",
     "doubleClick": "қос шерту",
     "drag": "апару",
     "editor": "Өңдеу",
-    "editSelectedShape": "Таңдалған пішінді өңдеу (мәтін/нұсқар/сызық)",
+    "editLineArrowPoints": "",
+    "editText": "",
     "github": "Қате таптыңыз ба? Жолдаңыз",
     "howto": "Біздің нұсқаулықтарды орындаңыз",
     "or": "немесе",
     "preventBinding": "Нұсқарды байланыстыруға жол бермеу",
-    "shapes": "Пішіндер",
+    "tools": "",
     "shortcuts": "Пернетақта пәрмендері",
     "textFinish": "Өңдеуді аяқтау (мәтіндік редактор)",
     "textNewLine": "Жаңа жолға көшу (мәтіндік редактор)",
     "title": "Көмек",
     "view": "Көру",
     "zoomToFit": "Барлық элементтердің көлеміне сәйкес үлкейту",
-    "zoomToSelection": "Таңдалғанды үлкейту"
+    "zoomToSelection": "Таңдалғанды үлкейту",
+    "toggleElementLock": "",
+    "movePageUpDown": "",
+    "movePageLeftRight": ""
+  },
+  "clearCanvasDialog": {
+    "title": ""
+  },
+  "publishDialog": {
+    "title": "",
+    "itemName": "",
+    "authorName": "",
+    "githubUsername": "",
+    "twitterUsername": "",
+    "libraryName": "",
+    "libraryDesc": "",
+    "website": "",
+    "placeholder": {
+      "authorName": "",
+      "libraryName": "",
+      "libraryDesc": "",
+      "githubHandle": "",
+      "twitterHandle": "",
+      "website": ""
+    },
+    "errors": {
+      "required": "",
+      "website": ""
+    },
+    "noteDescription": "",
+    "noteGuidelines": "",
+    "noteLicense": "",
+    "noteItems": "",
+    "atleastOneLibItem": "",
+    "republishWarning": ""
+  },
+  "publishSuccessDialog": {
+    "title": "",
+    "content": ""
+  },
+  "confirmDialog": {
+    "resetLibrary": "",
+    "removeItemsFromLib": ""
+  },
+  "imageExportDialog": {
+    "header": "",
+    "label": {
+      "withBackground": "",
+      "onlySelected": "",
+      "darkMode": "",
+      "embedScene": "",
+      "scale": "",
+      "padding": ""
+    },
+    "tooltip": {
+      "embedScene": ""
+    },
+    "title": {
+      "exportToPng": "",
+      "exportToSvg": "",
+      "copyPngToClipboard": ""
+    },
+    "button": {
+      "exportToPng": "",
+      "exportToSvg": "",
+      "copyPngToClipboard": ""
+    }
   },
   "encrypted": {
     "tooltip": "Сіздің сызбаларыңыз өтпелі шифрлеу арқылы шифрланған, сондықтан Excalidraw серверлері оларды ешқашан көрмейді.",
@@ -276,59 +419,84 @@
     "width": "Ені"
   },
   "toast": {
+    "addedToLibrary": "",
     "copyStyles": "Стильдер көшірілді.",
     "copyToClipboard": "",
     "copyToClipboardAsPng": "",
     "fileSaved": "Файл сақталды.",
     "fileSavedToFilename": "{filename} сақталды",
     "canvas": "",
-    "selection": "таңдау"
+    "selection": "таңдау",
+    "pasteAsSingleElement": "",
+    "unableToEmbed": "",
+    "unrecognizedLinkFormat": ""
   },
   "colors": {
-    "ffffff": "",
-    "f8f9fa": "",
-    "f1f3f5": "",
-    "fff5f5": "",
-    "fff0f6": "",
-    "f8f0fc": "",
-    "f3f0ff": "",
-    "edf2ff": "",
-    "e7f5ff": "",
-    "e3fafc": "",
-    "e6fcf5": "",
-    "ebfbee": "",
-    "f4fce3": "",
-    "fff9db": "",
-    "fff4e6": "",
     "transparent": "",
-    "ced4da": "",
-    "868e96": "",
-    "fa5252": "",
-    "e64980": "",
-    "be4bdb": "",
-    "7950f2": "",
-    "4c6ef5": "",
-    "228be6": "",
-    "15aabf": "",
-    "12b886": "",
-    "40c057": "",
-    "82c91e": "",
-    "fab005": "",
-    "fd7e14": "",
-    "000000": "",
-    "343a40": "",
-    "495057": "",
-    "c92a2a": "",
-    "a61e4d": "",
-    "862e9c": "",
-    "5f3dc4": "",
-    "364fc7": "",
-    "1864ab": "",
-    "0b7285": "",
-    "087f5b": "",
-    "2b8a3e": "",
-    "5c940d": "",
-    "e67700": "",
-    "d9480f": ""
+    "black": "",
+    "white": "",
+    "red": "",
+    "pink": "",
+    "grape": "",
+    "violet": "",
+    "gray": "",
+    "blue": "",
+    "cyan": "",
+    "teal": "",
+    "green": "",
+    "yellow": "",
+    "orange": "",
+    "bronze": ""
+  },
+  "welcomeScreen": {
+    "app": {
+      "center_heading": "",
+      "center_heading_plus": "",
+      "menuHint": ""
+    },
+    "defaults": {
+      "menuHint": "",
+      "center_heading": "",
+      "toolbarHint": "",
+      "helpHint": ""
+    }
+  },
+  "colorPicker": {
+    "mostUsedCustomColors": "",
+    "colors": "",
+    "shades": "",
+    "hexCode": "",
+    "noShades": ""
+  },
+  "overwriteConfirm": {
+    "action": {
+      "exportToImage": {
+        "title": "",
+        "button": "",
+        "description": ""
+      },
+      "saveToDisk": {
+        "title": "",
+        "button": "",
+        "description": ""
+      },
+      "excalidrawPlus": {
+        "title": "",
+        "button": "",
+        "description": ""
+      }
+    },
+    "modal": {
+      "loadFromFile": {
+        "title": "",
+        "button": "",
+        "description": ""
+      },
+      "shareableLink": {
+        "title": "",
+        "button": "",
+        "description": ""
+      }
+    }
   }
 }

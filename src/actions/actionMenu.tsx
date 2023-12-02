@@ -1,15 +1,13 @@
-import React from "react";
-import { menu, palette } from "../components/icons";
+import { HamburgerMenuIcon, palette } from "../components/icons";
 import { ToolButton } from "../components/ToolButton";
 import { t } from "../i18n";
 import { showSelectedShapeActions, getNonDeletedElements } from "../element";
 import { register } from "./register";
-import { allowFullScreen, exitFullScreen, isFullScreen } from "../utils";
-import { CODES, KEYS } from "../keys";
-import { HelpIcon } from "../components/HelpIcon";
+import { KEYS } from "../keys";
 
 export const actionToggleCanvasMenu = register({
   name: "toggleCanvasMenu",
+  trackEvent: { category: "menu" },
   perform: (_, appState) => ({
     appState: {
       ...appState,
@@ -20,7 +18,7 @@ export const actionToggleCanvasMenu = register({
   PanelComponent: ({ appState, updateData }) => (
     <ToolButton
       type="button"
-      icon={menu}
+      icon={HamburgerMenuIcon}
       aria-label={t("buttons.menu")}
       onClick={updateData}
       selected={appState.openMenu === "canvas"}
@@ -30,6 +28,7 @@ export const actionToggleCanvasMenu = register({
 
 export const actionToggleEditMenu = register({
   name: "toggleEditMenu",
+  trackEvent: { category: "menu" },
   perform: (_elements, appState) => ({
     appState: {
       ...appState,
@@ -52,38 +51,26 @@ export const actionToggleEditMenu = register({
   ),
 });
 
-export const actionFullScreen = register({
-  name: "toggleFullScreen",
-  perform: () => {
-    if (!isFullScreen()) {
-      allowFullScreen();
-    }
-    if (isFullScreen()) {
-      exitFullScreen();
-    }
-    return {
-      commitToHistory: false,
-    };
-  },
-  keyTest: (event) => event.code === CODES.F && !event[KEYS.CTRL_OR_CMD],
-});
-
 export const actionShortcuts = register({
   name: "toggleShortcuts",
+  viewMode: true,
+  trackEvent: { category: "menu", action: "toggleHelpDialog" },
   perform: (_elements, appState, _, { focusContainer }) => {
-    if (appState.showHelpDialog) {
+    if (appState.openDialog?.name === "help") {
       focusContainer();
     }
     return {
       appState: {
         ...appState,
-        showHelpDialog: !appState.showHelpDialog,
+        openDialog:
+          appState.openDialog?.name === "help"
+            ? null
+            : {
+                name: "help",
+              },
       },
       commitToHistory: false,
     };
   },
-  PanelComponent: ({ updateData }) => (
-    <HelpIcon title={t("helpDialog.title")} onClick={updateData} />
-  ),
   keyTest: (event) => event.key === KEYS.QUESTION_MARK,
 });

@@ -2,6 +2,9 @@ import { ExcalidrawElement } from "./types";
 import { mutateElement } from "./mutateElement";
 import { isFreeDrawElement, isLinearElement } from "./typeChecks";
 import { SHIFT_LOCKING_ANGLE } from "../constants";
+import { AppState, Zoom } from "../types";
+import { getElementBounds } from "./bounds";
+import { viewportCoordsToSceneCoords } from "../utils";
 
 export const isInvisiblySmallElement = (
   element: ExcalidrawElement,
@@ -12,11 +15,47 @@ export const isInvisiblySmallElement = (
   return element.width === 0 && element.height === 0;
 };
 
+export const isElementInViewport = (
+  element: ExcalidrawElement,
+  width: number,
+  height: number,
+  viewTransformations: {
+    zoom: Zoom;
+    offsetLeft: number;
+    offsetTop: number;
+    scrollX: number;
+    scrollY: number;
+  },
+) => {
+  const [x1, y1, x2, y2] = getElementBounds(element); // scene coordinates
+  const topLeftSceneCoords = viewportCoordsToSceneCoords(
+    {
+      clientX: viewTransformations.offsetLeft,
+      clientY: viewTransformations.offsetTop,
+    },
+    viewTransformations,
+  );
+  const bottomRightSceneCoords = viewportCoordsToSceneCoords(
+    {
+      clientX: viewTransformations.offsetLeft + width,
+      clientY: viewTransformations.offsetTop + height,
+    },
+    viewTransformations,
+  );
+
+  return (
+    topLeftSceneCoords.x <= x2 &&
+    topLeftSceneCoords.y <= y2 &&
+    bottomRightSceneCoords.x >= x1 &&
+    bottomRightSceneCoords.y >= y1
+  );
+};
+
 /**
  * Makes a perfect shape or diagonal/horizontal/vertical line
  */
 export const getPerfectElementSize = (
-  elementType: string,
+  elementType: AppState["activeTool"]["type"],
   width: number,
   height: number,
 ): { width: number; height: number } => {
@@ -36,13 +75,51 @@ export const getPerfectElementSize = (
     } else if (lockedAngle === Math.PI / 2) {
       width = 0;
     } else {
-      height =
-        Math.round(absWidth * Math.tan(lockedAngle)) * Math.sign(height) ||
-        height;
+      height = absWidth * Math.tan(lockedAngle) * Math.sign(height) || height;
     }
   } else if (elementType !== "selection") {
     height = absWidth * Math.sign(height);
   }
+  return { width, height };
+};
+
+export const getLockedLinearCursorAlignSize = (
+  originX: number,
+  originY: number,
+  x: number,
+  y: number,
+) => {
+  let width = x - originX;
+  let height = y - originY;
+
+  const lockedAngle =
+    Math.round(Math.atan(height / width) / SHIFT_LOCKING_ANGLE) *
+    SHIFT_LOCKING_ANGLE;
+
+  if (lockedAngle === 0) {
+    height = 0;
+  } else if (lockedAngle === Math.PI / 2) {
+    width = 0;
+  } else {
+    // locked angle line, y = mx + b => mx - y + b = 0
+    const a1 = Math.tan(lockedAngle);
+    const b1 = -1;
+    const c1 = originY - a1 * originX;
+
+    // line through cursor, perpendicular to locked angle line
+    const a2 = -1 / a1;
+    const b2 = -1;
+    const c2 = y - a2 * x;
+
+    // intersection of the two lines above
+    const intersectX = (b1 * c2 - b2 * c1) / (a1 * b2 - a2 * b1);
+    const intersectY = (c1 * a2 - c2 * a1) / (a1 * b2 - a2 * b1);
+
+    // delta
+    width = intersectX - originX;
+    height = intersectY - originY;
+  }
+
   return { width, height };
 };
 

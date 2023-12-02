@@ -9,20 +9,21 @@ import {
   queryByText,
   queryAllByText,
   waitFor,
+  togglePopover,
 } from "./test-utils";
-import ExcalidrawApp from "../excalidraw-app";
+import { Excalidraw } from "../packages/excalidraw/index";
 import * as Renderer from "../renderer/renderScene";
 import { reseed } from "../random";
 import { UI, Pointer, Keyboard } from "./helpers/ui";
-import { CODES } from "../keys";
+import { KEYS } from "../keys";
 import { ShortcutName } from "../actions/shortcuts";
 import { copiedStyles } from "../actions/actionStyles";
 import { API } from "./helpers/api";
 import { setDateTimeForTests } from "../utils";
-import { t } from "../i18n";
+import { vi } from "vitest";
 
 const checkpoint = (name: string) => {
-  expect(renderScene.mock.calls.length).toMatchSnapshot(
+  expect(renderStaticScene.mock.calls.length).toMatchSnapshot(
     `[${name}] number of renders`,
   );
   expect(h.state).toMatchSnapshot(`[${name}] appState`);
@@ -35,25 +36,13 @@ const checkpoint = (name: string) => {
 
 const mouse = new Pointer("mouse");
 
-const queryContextMenu = () => {
-  return GlobalTestState.renderResult.container.querySelector(".context-menu");
-};
-
-const clickLabeledElement = (label: string) => {
-  const element = document.querySelector(`[aria-label='${label}']`);
-  if (!element) {
-    throw new Error(`No labeled element found: ${label}`);
-  }
-  fireEvent.click(element);
-};
-
 // Unmount ReactDOM from root
 ReactDOM.unmountComponentAtNode(document.getElementById("root")!);
 
-const renderScene = jest.spyOn(Renderer, "renderScene");
+const renderStaticScene = vi.spyOn(Renderer, "renderStaticScene");
 beforeEach(() => {
   localStorage.clear();
-  renderScene.mockClear();
+  renderStaticScene.mockClear();
   reseed(7);
 });
 
@@ -62,11 +51,11 @@ const { h } = window;
 describe("contextMenu element", () => {
   beforeEach(async () => {
     localStorage.clear();
-    renderScene.mockClear();
+    renderStaticScene.mockClear();
     reseed(7);
     setDateTimeForTests("201933152653");
 
-    await render(<ExcalidrawApp />);
+    await render(<Excalidraw handleKeyboardGlobally={true} />);
   });
 
   beforeAll(() => {
@@ -85,20 +74,21 @@ describe("contextMenu element", () => {
   });
 
   it("shows context menu for canvas", () => {
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
-    const contextMenuOptions = contextMenu?.querySelectorAll(
-      ".context-menu li",
-    );
+    const contextMenu = UI.queryContextMenu();
+    const contextMenuOptions =
+      contextMenu?.querySelectorAll(".context-menu li");
     const expectedShortcutNames: ShortcutName[] = [
+      "paste",
       "selectAll",
       "gridMode",
       "zenMode",
       "viewMode",
+      "objectsSnapMode",
       "stats",
     ];
 
@@ -116,16 +106,18 @@ describe("contextMenu element", () => {
     mouse.down(10, 10);
     mouse.up(20, 20);
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
-    const contextMenuOptions = contextMenu?.querySelectorAll(
-      ".context-menu li",
-    );
+    const contextMenu = UI.queryContextMenu();
+    const contextMenuOptions =
+      contextMenu?.querySelectorAll(".context-menu li");
     const expectedShortcutNames: ShortcutName[] = [
+      "cut",
+      "copy",
+      "paste",
       "copyStyles",
       "pasteStyles",
       "deleteSelectedElements",
@@ -137,6 +129,8 @@ describe("contextMenu element", () => {
       "sendToBack",
       "bringToFront",
       "duplicateSelection",
+      "hyperlink",
+      "toggleElementLock",
     ];
 
     expect(contextMenu).not.toBeNull();
@@ -169,22 +163,22 @@ describe("contextMenu element", () => {
     API.setSelectedElements([rect1]);
 
     // lower z-index
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 100,
       clientY: 100,
     });
-    expect(queryContextMenu()).not.toBeNull();
+    expect(UI.queryContextMenu()).not.toBeNull();
     expect(API.getSelectedElement().id).toBe(rect1.id);
 
     // higher z-index
     API.setSelectedElements([rect2]);
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 100,
       clientY: 100,
     });
-    expect(queryContextMenu()).not.toBeNull();
+    expect(UI.queryContextMenu()).not.toBeNull();
     expect(API.getSelectedElement().id).toBe(rect2.id);
   });
 
@@ -203,27 +197,32 @@ describe("contextMenu element", () => {
       mouse.click(20, 0);
     });
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
 
-    const contextMenu = queryContextMenu();
-    const contextMenuOptions = contextMenu?.querySelectorAll(
-      ".context-menu li",
-    );
+    const contextMenu = UI.queryContextMenu();
+    const contextMenuOptions =
+      contextMenu?.querySelectorAll(".context-menu li");
     const expectedShortcutNames: ShortcutName[] = [
+      "cut",
+      "copy",
+      "paste",
       "copyStyles",
       "pasteStyles",
       "deleteSelectedElements",
       "group",
       "addToLibrary",
+      "flipHorizontal",
+      "flipVertical",
       "sendBackward",
       "bringForward",
       "sendToBack",
       "bringToFront",
       "duplicateSelection",
+      "toggleElementLock",
     ];
 
     expect(contextMenu).not.toBeNull();
@@ -251,30 +250,35 @@ describe("contextMenu element", () => {
     });
 
     Keyboard.withModifierKeys({ ctrl: true }, () => {
-      Keyboard.codePress(CODES.G);
+      Keyboard.keyPress(KEYS.G);
     });
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
 
-    const contextMenu = queryContextMenu();
-    const contextMenuOptions = contextMenu?.querySelectorAll(
-      ".context-menu li",
-    );
+    const contextMenu = UI.queryContextMenu();
+    const contextMenuOptions =
+      contextMenu?.querySelectorAll(".context-menu li");
     const expectedShortcutNames: ShortcutName[] = [
+      "cut",
+      "copy",
+      "paste",
       "copyStyles",
       "pasteStyles",
       "deleteSelectedElements",
       "ungroup",
       "addToLibrary",
+      "flipHorizontal",
+      "flipVertical",
       "sendBackward",
       "bringForward",
       "sendToBack",
       "bringToFront",
       "duplicateSelection",
+      "toggleElementLock",
     ];
 
     expect(contextMenu).not.toBeNull();
@@ -291,16 +295,16 @@ describe("contextMenu element", () => {
     mouse.down(10, 10);
     mouse.up(20, 20);
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
+    const contextMenu = UI.queryContextMenu();
     expect(copiedStyles).toBe("{}");
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Copy styles")!);
+    fireEvent.click(queryByText(contextMenu!, "Copy styles")!);
     expect(copiedStyles).not.toBe("{}");
-    const element = JSON.parse(copiedStyles);
+    const element = JSON.parse(copiedStyles)[0];
     expect(element).toEqual(API.getSelectedElement());
   });
 
@@ -314,10 +318,10 @@ describe("contextMenu element", () => {
     mouse.up(20, 20);
 
     // Change some styles of second rectangle
-    clickLabeledElement("Stroke");
-    clickLabeledElement(t("colors.c92a2a"));
-    clickLabeledElement("Background");
-    clickLabeledElement(t("colors.e64980"));
+    togglePopover("Stroke");
+    UI.clickOnTestId("color-red");
+    togglePopover("Background");
+    UI.clickOnTestId("color-blue");
     // Fill style
     fireEvent.click(screen.getByTitle("Cross-hatch"));
     // Stroke width
@@ -331,32 +335,39 @@ describe("contextMenu element", () => {
       target: { value: "60" },
     });
 
+    // closing the background popover as this blocks
+    // context menu from rendering after we started focussing
+    // the popover once rendered :/
+    togglePopover("Background");
+
     mouse.reset();
+
     // Copy styles of second rectangle
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 40,
       clientY: 40,
     });
-    let contextMenu = queryContextMenu();
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Copy styles")!);
-    const secondRect = JSON.parse(copiedStyles);
+
+    let contextMenu = UI.queryContextMenu();
+    fireEvent.click(queryByText(contextMenu!, "Copy styles")!);
+    const secondRect = JSON.parse(copiedStyles)[0];
     expect(secondRect.id).toBe(h.elements[1].id);
 
     mouse.reset();
     // Paste styles to first rectangle
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 10,
       clientY: 10,
     });
-    contextMenu = queryContextMenu();
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Paste styles")!);
+    contextMenu = UI.queryContextMenu();
+    fireEvent.click(queryByText(contextMenu!, "Paste styles")!);
 
     const firstRect = API.getSelectedElement();
     expect(firstRect.id).toBe(h.elements[0].id);
-    expect(firstRect.strokeColor).toBe("#c92a2a");
-    expect(firstRect.backgroundColor).toBe("#e64980");
+    expect(firstRect.strokeColor).toBe("#e03131");
+    expect(firstRect.backgroundColor).toBe("#a5d8ff");
     expect(firstRect.fillStyle).toBe("cross-hatch");
     expect(firstRect.strokeWidth).toBe(2); // Bold: 2
     expect(firstRect.strokeStyle).toBe("dotted");
@@ -369,13 +380,13 @@ describe("contextMenu element", () => {
     mouse.down(10, 10);
     mouse.up(20, 20);
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
-    fireEvent.click(queryAllByText(contextMenu as HTMLElement, "Delete")[0]);
+    const contextMenu = UI.queryContextMenu();
+    fireEvent.click(queryAllByText(contextMenu!, "Delete")[0]);
     expect(API.getSelectedElements()).toHaveLength(0);
     expect(h.elements[0].isDeleted).toBe(true);
   });
@@ -385,19 +396,17 @@ describe("contextMenu element", () => {
     mouse.down(10, 10);
     mouse.up(20, 20);
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Add to library")!);
+    const contextMenu = UI.queryContextMenu();
+    fireEvent.click(queryByText(contextMenu!, "Add to library")!);
 
-    await waitFor(() => {
-      const library = localStorage.getItem("excalidraw-library");
-      expect(library).not.toBeNull();
-      const addedElement = JSON.parse(library!)[0][0];
-      expect(addedElement).toEqual(h.elements[0]);
+    await waitFor(async () => {
+      const libraryItems = await h.app.library.getLatestLibrary();
+      expect(libraryItems[0].elements[0]).toEqual(h.elements[0]);
     });
   });
 
@@ -406,13 +415,13 @@ describe("contextMenu element", () => {
     mouse.down(10, 10);
     mouse.up(20, 20);
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Duplicate")!);
+    const contextMenu = UI.queryContextMenu();
+    fireEvent.click(queryByText(contextMenu!, "Duplicate")!);
     expect(h.elements).toHaveLength(2);
     const { id: _id0, seed: _seed0, x: _x0, y: _y0, ...rect1 } = h.elements[0];
     const { id: _id1, seed: _seed1, x: _x1, y: _y1, ...rect2 } = h.elements[1];
@@ -429,14 +438,14 @@ describe("contextMenu element", () => {
     mouse.up(20, 20);
 
     mouse.reset();
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 40,
       clientY: 40,
     });
-    const contextMenu = queryContextMenu();
+    const contextMenu = UI.queryContextMenu();
     const elementsBefore = h.elements;
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Send backward")!);
+    fireEvent.click(queryByText(contextMenu!, "Send backward")!);
     expect(elementsBefore[0].id).toEqual(h.elements[1].id);
     expect(elementsBefore[1].id).toEqual(h.elements[0].id);
   });
@@ -451,14 +460,14 @@ describe("contextMenu element", () => {
     mouse.up(20, 20);
 
     mouse.reset();
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 10,
       clientY: 10,
     });
-    const contextMenu = queryContextMenu();
+    const contextMenu = UI.queryContextMenu();
     const elementsBefore = h.elements;
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Bring forward")!);
+    fireEvent.click(queryByText(contextMenu!, "Bring forward")!);
     expect(elementsBefore[0].id).toEqual(h.elements[1].id);
     expect(elementsBefore[1].id).toEqual(h.elements[0].id);
   });
@@ -473,14 +482,14 @@ describe("contextMenu element", () => {
     mouse.up(20, 20);
 
     mouse.reset();
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 40,
       clientY: 40,
     });
-    const contextMenu = queryContextMenu();
+    const contextMenu = UI.queryContextMenu();
     const elementsBefore = h.elements;
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Send to back")!);
+    fireEvent.click(queryByText(contextMenu!, "Send to back")!);
     expect(elementsBefore[1].id).toEqual(h.elements[0].id);
   });
 
@@ -494,14 +503,14 @@ describe("contextMenu element", () => {
     mouse.up(20, 20);
 
     mouse.reset();
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 10,
       clientY: 10,
     });
-    const contextMenu = queryContextMenu();
+    const contextMenu = UI.queryContextMenu();
     const elementsBefore = h.elements;
-    fireEvent.click(queryByText(contextMenu as HTMLElement, "Bring to front")!);
+    fireEvent.click(queryByText(contextMenu!, "Bring to front")!);
     expect(elementsBefore[0].id).toEqual(h.elements[1].id);
   });
 
@@ -519,15 +528,13 @@ describe("contextMenu element", () => {
       mouse.click(10, 10);
     });
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
-    const contextMenu = queryContextMenu();
-    fireEvent.click(
-      queryByText(contextMenu as HTMLElement, "Group selection")!,
-    );
+    const contextMenu = UI.queryContextMenu();
+    fireEvent.click(queryByText(contextMenu!, "Group selection")!);
     const selectedGroupIds = Object.keys(h.state.selectedGroupIds);
     expect(h.elements[0].groupIds).toEqual(selectedGroupIds);
     expect(h.elements[1].groupIds).toEqual(selectedGroupIds);
@@ -548,24 +555,47 @@ describe("contextMenu element", () => {
     });
 
     Keyboard.withModifierKeys({ ctrl: true }, () => {
-      Keyboard.codePress(CODES.G);
+      Keyboard.keyPress(KEYS.G);
     });
 
-    fireEvent.contextMenu(GlobalTestState.canvas, {
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
       button: 2,
       clientX: 1,
       clientY: 1,
     });
 
-    const contextMenu = queryContextMenu();
+    const contextMenu = UI.queryContextMenu();
     expect(contextMenu).not.toBeNull();
-    fireEvent.click(
-      queryByText(contextMenu as HTMLElement, "Ungroup selection")!,
-    );
+    fireEvent.click(queryByText(contextMenu!, "Ungroup selection")!);
 
     const selectedGroupIds = Object.keys(h.state.selectedGroupIds);
     expect(selectedGroupIds).toHaveLength(0);
     expect(h.elements[0].groupIds).toHaveLength(0);
     expect(h.elements[1].groupIds).toHaveLength(0);
+  });
+
+  it("right-clicking on a group should select whole group", () => {
+    const rectangle1 = API.createElement({
+      type: "rectangle",
+      width: 100,
+      backgroundColor: "red",
+      fillStyle: "solid",
+      groupIds: ["g1"],
+    });
+    const rectangle2 = API.createElement({
+      type: "rectangle",
+      width: 100,
+      backgroundColor: "red",
+      fillStyle: "solid",
+      groupIds: ["g1"],
+    });
+    h.elements = [rectangle1, rectangle2];
+
+    mouse.rightClickAt(50, 50);
+    expect(API.getSelectedElements().length).toBe(2);
+    expect(API.getSelectedElements()).toEqual([
+      expect.objectContaining({ id: rectangle1.id }),
+      expect.objectContaining({ id: rectangle2.id }),
+    ]);
   });
 });

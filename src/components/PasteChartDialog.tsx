@@ -5,8 +5,10 @@ import { ChartElements, renderSpreadsheet, Spreadsheet } from "../charts";
 import { ChartType } from "../element/types";
 import { t } from "../i18n";
 import { exportToSvg } from "../scene/export";
-import { AppState, LibraryItem } from "../types";
+import { UIAppState } from "../types";
+import { useApp } from "./App";
 import { Dialog } from "./Dialog";
+
 import "./PasteChartDialog.scss";
 
 type OnInsertChart = (chartType: ChartType, elements: ChartElements) => void;
@@ -38,11 +40,16 @@ const ChartPreviewBtn = (props: {
     const previewNode = previewRef.current!;
 
     (async () => {
-      svg = await exportToSvg(elements, {
-        exportBackground: false,
-        viewBackgroundColor: oc.white,
-      });
-
+      svg = await exportToSvg(
+        elements,
+        {
+          exportBackground: false,
+          viewBackgroundColor: oc.white,
+        },
+        null, // files
+      );
+      svg.querySelector(".style-fonts")?.remove();
+      previewNode.replaceChildren();
       previewNode.appendChild(svg);
 
       if (props.selected) {
@@ -51,7 +58,7 @@ const ChartPreviewBtn = (props: {
     })();
 
     return () => {
-      previewNode.removeChild(svg);
+      previewNode.replaceChildren();
     };
   }, [props.spreadsheet, props.chartType, props.selected]);
 
@@ -73,13 +80,12 @@ export const PasteChartDialog = ({
   setAppState,
   appState,
   onClose,
-  onInsertChart,
 }: {
-  appState: AppState;
+  appState: UIAppState;
   onClose: () => void;
-  setAppState: React.Component<any, AppState>["setState"];
-  onInsertChart: (elements: LibraryItem) => void;
+  setAppState: React.Component<any, UIAppState>["setState"];
 }) => {
+  const { onInsertElements } = useApp();
   const handleClose = React.useCallback(() => {
     if (onClose) {
       onClose();
@@ -87,8 +93,8 @@ export const PasteChartDialog = ({
   }, [onClose]);
 
   const handleChartClick = (chartType: ChartType, elements: ChartElements) => {
-    onInsertChart(elements);
-    trackEvent("magic", "chart", chartType);
+    onInsertElements(elements);
+    trackEvent("paste", "chart", chartType);
     setAppState({
       currentChartType: chartType,
       pasteDialog: {
@@ -100,7 +106,7 @@ export const PasteChartDialog = ({
 
   return (
     <Dialog
-      small
+      size="small"
       onCloseRequest={handleClose}
       title={t("labels.pasteCharts")}
       className={"PasteChartDialog"}

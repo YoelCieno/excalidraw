@@ -1,8 +1,14 @@
 import React from "react";
 import { ExcalidrawElement } from "../element/types";
-import { AppState, ExcalidrawProps } from "../types";
-import Library from "../data/library";
-import { ToolButtonSize } from "../components/ToolButton";
+import {
+  AppClassProperties,
+  AppState,
+  ExcalidrawProps,
+  BinaryFiles,
+} from "../types";
+import { MarkOptional } from "../utility-types";
+
+export type ActionSource = "ui" | "keyboard" | "contextMenu" | "api";
 
 /** if false, the action should be prevented */
 export type ActionResult =
@@ -12,22 +18,18 @@ export type ActionResult =
         AppState,
         "offsetTop" | "offsetLeft" | "width" | "height"
       > | null;
+      files?: BinaryFiles | null;
       commitToHistory: boolean;
       syncHistory?: boolean;
+      replaceFiles?: boolean;
     }
   | false;
-
-type AppAPI = {
-  canvas: HTMLCanvasElement | null;
-  focusContainer(): void;
-  library: Library;
-};
 
 type ActionFn = (
   elements: readonly ExcalidrawElement[],
   appState: Readonly<AppState>,
   formData: any,
-  app: AppAPI,
+  app: AppClassProperties,
 ) => ActionResult | Promise<ActionResult>;
 
 export type UpdaterFn = (res: ActionResult) => void;
@@ -39,6 +41,7 @@ export type ActionName =
   | "paste"
   | "copyAsPng"
   | "copyAsSvg"
+  | "copyText"
   | "sendBackward"
   | "bringForward"
   | "sendToBack"
@@ -48,6 +51,7 @@ export type ActionName =
   | "pasteStyles"
   | "gridMode"
   | "zenMode"
+  | "objectsSnapMode"
   | "stats"
   | "changeStrokeColor"
   | "changeBackgroundColor"
@@ -79,16 +83,18 @@ export type ActionName =
   | "zoomOut"
   | "resetZoom"
   | "zoomToFit"
-  | "zoomToSelection"
+  | "zoomToFitSelection"
+  | "zoomToFitSelectionInViewport"
   | "changeFontFamily"
   | "changeTextAlign"
+  | "changeVerticalAlign"
   | "toggleFullScreen"
   | "toggleShortcuts"
   | "group"
   | "ungroup"
   | "goToCollaborator"
   | "addToLibrary"
-  | "changeSharpness"
+  | "changeRoundness"
   | "alignTop"
   | "alignBottom"
   | "alignLeft"
@@ -101,14 +107,32 @@ export type ActionName =
   | "flipVertical"
   | "viewMode"
   | "exportWithDarkMode"
-  | "toggleTheme";
+  | "toggleTheme"
+  | "increaseFontSize"
+  | "decreaseFontSize"
+  | "unbindText"
+  | "hyperlink"
+  | "bindText"
+  | "unlockAllElements"
+  | "toggleElementLock"
+  | "toggleLinearEditor"
+  | "toggleEraserTool"
+  | "toggleHandTool"
+  | "selectAllElementsInFrame"
+  | "removeAllElementsFromFrame"
+  | "updateFrameRendering"
+  | "setFrameAsActiveTool"
+  | "setEmbeddableAsActiveTool"
+  | "createContainerFromText"
+  | "wrapTextInContainer";
 
 export type PanelComponentProps = {
   elements: readonly ExcalidrawElement[];
   appState: AppState;
   updateData: (formData?: any) => void;
   appProps: ExcalidrawProps;
-  data?: Partial<{ id: string; size: ToolButtonSize }>;
+  data?: Record<string, any>;
+  app: AppClassProperties;
 };
 
 export interface Action {
@@ -120,19 +144,42 @@ export interface Action {
     event: React.KeyboardEvent | KeyboardEvent,
     appState: AppState,
     elements: readonly ExcalidrawElement[],
+    app: AppClassProperties,
   ) => boolean;
-  contextItemLabel?: string;
-  contextItemPredicate?: (
+  contextItemLabel?:
+    | string
+    | ((
+        elements: readonly ExcalidrawElement[],
+        appState: Readonly<AppState>,
+        app: AppClassProperties,
+      ) => string);
+  predicate?: (
     elements: readonly ExcalidrawElement[],
     appState: AppState,
+    appProps: ExcalidrawProps,
+    app: AppClassProperties,
   ) => boolean;
   checked?: (appState: Readonly<AppState>) => boolean;
-}
-
-export interface ActionsManagerInterface {
-  actions: Record<ActionName, Action>;
-  registerAction: (action: Action) => void;
-  handleKeyDown: (event: React.KeyboardEvent | KeyboardEvent) => boolean;
-  renderAction: (name: ActionName) => React.ReactElement | null;
-  executeAction: (action: Action) => void;
+  trackEvent:
+    | false
+    | {
+        category:
+          | "toolbar"
+          | "element"
+          | "canvas"
+          | "export"
+          | "history"
+          | "menu"
+          | "collab"
+          | "hyperlink";
+        action?: string;
+        predicate?: (
+          appState: Readonly<AppState>,
+          elements: readonly ExcalidrawElement[],
+          value: any,
+        ) => boolean;
+      };
+  /** if set to `true`, allow action to be performed in viewMode.
+   *  Defaults to `false` */
+  viewMode?: boolean;
 }

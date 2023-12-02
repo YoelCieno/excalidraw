@@ -1,17 +1,29 @@
 import { Point } from "../types";
-import { FONT_FAMILY } from "../constants";
+import {
+  FONT_FAMILY,
+  ROUNDNESS,
+  TEXT_ALIGN,
+  THEME,
+  VERTICAL_ALIGN,
+} from "../constants";
+import { MarkNonNullable, ValueOf } from "../utility-types";
+import { MagicCacheData } from "../data/magic";
 
 export type ChartType = "bar" | "line";
-export type FillStyle = "hachure" | "cross-hatch" | "solid";
+export type FillStyle = "hachure" | "cross-hatch" | "solid" | "zigzag";
 export type FontFamilyKeys = keyof typeof FONT_FAMILY;
 export type FontFamilyValues = typeof FONT_FAMILY[FontFamilyKeys];
+export type Theme = typeof THEME[keyof typeof THEME];
 export type FontString = string & { _brand: "fontString" };
 export type GroupId = string;
 export type PointerType = "mouse" | "pen" | "touch";
-export type StrokeSharpness = "round" | "sharp";
+export type StrokeRoundness = "round" | "sharp";
+export type RoundnessType = ValueOf<typeof ROUNDNESS>;
 export type StrokeStyle = "solid" | "dashed" | "dotted";
-export type TextAlign = "left" | "center" | "right";
-export type VerticalAlign = "top" | "middle";
+export type TextAlign = typeof TEXT_ALIGN[keyof typeof TEXT_ALIGN];
+
+type VerticalAlignKeys = keyof typeof VERTICAL_ALIGN;
+export type VerticalAlign = typeof VERTICAL_ALIGN[VerticalAlignKeys];
 
 type _ExcalidrawElementBase = Readonly<{
   id: string;
@@ -22,7 +34,7 @@ type _ExcalidrawElementBase = Readonly<{
   fillStyle: FillStyle;
   strokeWidth: number;
   strokeStyle: StrokeStyle;
-  strokeSharpness: StrokeSharpness;
+  roundness: null | { type: RoundnessType; value?: number };
   roughness: number;
   opacity: number;
   width: number;
@@ -42,8 +54,19 @@ type _ExcalidrawElementBase = Readonly<{
   /** List of groups the element belongs to.
       Ordered from deepest to shallowest. */
   groupIds: readonly GroupId[];
-  /** Ids of (linear) elements that are bound to this element. */
-  boundElementIds: readonly ExcalidrawLinearElement["id"][] | null;
+  frameId: string | null;
+  /** other elements that are bound to this element */
+  boundElements:
+    | readonly Readonly<{
+        id: ExcalidrawLinearElement["id"];
+        type: "arrow" | "text";
+      }>[]
+    | null;
+  /** epoch (ms) timestamp of last element update */
+  updated: number;
+  link: string | null;
+  locked: boolean;
+  customData?: Record<string, any>;
 }>;
 
 export type ExcalidrawSelectionElement = _ExcalidrawElementBase & {
@@ -61,6 +84,68 @@ export type ExcalidrawDiamondElement = _ExcalidrawElementBase & {
 export type ExcalidrawEllipseElement = _ExcalidrawElementBase & {
   type: "ellipse";
 };
+
+export type ExcalidrawEmbeddableElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "embeddable";
+    /**
+     * indicates whether the embeddable src (url) has been validated for rendering.
+     * null value indicates that the validation is pending. We reset the
+     * value on each restore (or url change) so that we can guarantee
+     * the validation came from a trusted source (the editor). Also because we
+     * may not have access to host-app supplied url validator during restore.
+     */
+    validated: boolean | null;
+  }>;
+
+export type ExcalidrawIframeElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "iframe";
+    // TODO move later to AI-specific frame
+    customData?: { generationData?: MagicCacheData };
+  }>;
+
+export type ExcalidrawIframeLikeElement =
+  | ExcalidrawIframeElement
+  | ExcalidrawEmbeddableElement;
+
+export type IframeData =
+  | {
+      intrinsicSize: { w: number; h: number };
+      warning?: string;
+    } & (
+      | { type: "video" | "generic"; link: string }
+      | { type: "document"; srcdoc: (theme: Theme) => string }
+    );
+
+export type ExcalidrawImageElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "image";
+    fileId: FileId | null;
+    /** whether respective file is persisted */
+    status: "pending" | "saved" | "error";
+    /** X and Y scale factors <-1, 1>, used for image axis flipping */
+    scale: [number, number];
+  }>;
+
+export type InitializedExcalidrawImageElement = MarkNonNullable<
+  ExcalidrawImageElement,
+  "fileId"
+>;
+
+export type ExcalidrawFrameElement = _ExcalidrawElementBase & {
+  type: "frame";
+  name: string | null;
+};
+
+export type ExcalidrawMagicFrameElement = _ExcalidrawElementBase & {
+  type: "magicframe";
+  name: string | null;
+};
+
+export type ExcalidrawFrameLikeElement =
+  | ExcalidrawFrameElement
+  | ExcalidrawMagicFrameElement;
 
 /**
  * These are elements that don't have any additional properties.
@@ -80,10 +165,15 @@ export type ExcalidrawElement =
   | ExcalidrawGenericElement
   | ExcalidrawTextElement
   | ExcalidrawLinearElement
-  | ExcalidrawFreeDrawElement;
+  | ExcalidrawFreeDrawElement
+  | ExcalidrawImageElement
+  | ExcalidrawFrameElement
+  | ExcalidrawMagicFrameElement
+  | ExcalidrawIframeElement
+  | ExcalidrawEmbeddableElement;
 
 export type NonDeleted<TElement extends ExcalidrawElement> = TElement & {
-  isDeleted: false;
+  isDeleted: boolean;
 };
 
 export type NonDeletedExcalidrawElement = NonDeleted<ExcalidrawElement>;
@@ -97,13 +187,35 @@ export type ExcalidrawTextElement = _ExcalidrawElementBase &
     baseline: number;
     textAlign: TextAlign;
     verticalAlign: VerticalAlign;
+    containerId: ExcalidrawGenericElement["id"] | null;
+    originalText: string;
+    /**
+     * Unitless line height (aligned to W3C). To get line height in px, multiply
+     *  with font size (using `getLineHeightInPx` helper).
+     */
+    lineHeight: number & { _brand: "unitlessLineHeight" };
   }>;
 
 export type ExcalidrawBindableElement =
   | ExcalidrawRectangleElement
   | ExcalidrawDiamondElement
   | ExcalidrawEllipseElement
-  | ExcalidrawTextElement;
+  | ExcalidrawTextElement
+  | ExcalidrawImageElement
+  | ExcalidrawIframeElement
+  | ExcalidrawEmbeddableElement
+  | ExcalidrawFrameElement
+  | ExcalidrawMagicFrameElement;
+
+export type ExcalidrawTextContainer =
+  | ExcalidrawRectangleElement
+  | ExcalidrawDiamondElement
+  | ExcalidrawEllipseElement
+  | ExcalidrawArrowElement;
+
+export type ExcalidrawTextElementWithContainer = {
+  containerId: ExcalidrawTextContainer["id"];
+} & ExcalidrawTextElement;
 
 export type PointBinding = {
   elementId: ExcalidrawBindableElement["id"];
@@ -111,7 +223,7 @@ export type PointBinding = {
   gap: number;
 };
 
-export type Arrowhead = "arrow" | "bar" | "dot";
+export type Arrowhead = "arrow" | "bar" | "dot" | "triangle";
 
 export type ExcalidrawLinearElement = _ExcalidrawElementBase &
   Readonly<{
@@ -124,6 +236,11 @@ export type ExcalidrawLinearElement = _ExcalidrawElementBase &
     endArrowhead: Arrowhead | null;
   }>;
 
+export type ExcalidrawArrowElement = ExcalidrawLinearElement &
+  Readonly<{
+    type: "arrow";
+  }>;
+
 export type ExcalidrawFreeDrawElement = _ExcalidrawElementBase &
   Readonly<{
     type: "freedraw";
@@ -132,3 +249,7 @@ export type ExcalidrawFreeDrawElement = _ExcalidrawElementBase &
     simulatePressure: boolean;
     lastCommittedPoint: Point | null;
   }>;
+
+export type FileId = string & { _brand: "FileId" };
+
+export type ExcalidrawElementType = ExcalidrawElement["type"];

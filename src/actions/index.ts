@@ -17,6 +17,7 @@ export {
   actionChangeFontSize,
   actionChangeFontFamily,
   actionChangeTextAlign,
+  actionChangeVerticalAlign,
 } from "./actionProperties";
 
 export {
@@ -43,7 +44,6 @@ export { actionCopyStyles, actionPasteStyles } from "./actionStyles";
 export {
   actionToggleCanvasMenu,
   actionToggleEditMenu,
-  actionFullScreen,
   actionShortcuts,
 } from "./actionMenu";
 
@@ -74,9 +74,15 @@ export {
   actionCut,
   actionCopyAsPng,
   actionCopyAsSvg,
+  copyText,
 } from "./actionClipboard";
 
 export { actionToggleGridMode } from "./actionToggleGridMode";
 export { actionToggleZenMode } from "./actionToggleZenMode";
+export { actionToggleObjectsSnapMode } from "./actionToggleObjectsSnapMode";
 
 export { actionToggleStats } from "./actionToggleStats";
+export { actionUnbindText, actionBindText } from "./actionBoundText";
+export { actionLink } from "../element/Hyperlink";
+export { actionToggleElementLock } from "./actionElementLock";
+export { actionToggleLinearEditor } from "./actionLinearEditor";

@@ -2,8 +2,11 @@
 
 // container in body where the actual tooltip is appended to
 .excalidraw-tooltip {
-  position: absolute;
-  z-index: 1000;
+  --ui-font: Assistant, system-ui, BlinkMacSystemFont, -apple-system, Segoe UI,
+    Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--ui-font);
+  position: fixed;
+  z-index: var(--zIndex-popup);
 
   padding: 8px;
   border-radius: 6px;
@@ -29,7 +32,6 @@
 // wraps the element we want to apply the tooltip to
 .excalidraw-tooltip-wrapper {
   display: flex;
-  height: 100%;
 }
 
 .excalidraw-tooltip-icon {

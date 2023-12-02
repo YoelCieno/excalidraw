@@ -1,6 +1,8 @@
 const path = require("path");
 const webpack = require("webpack");
 const autoprefixer = require("autoprefixer");
+const { parseEnvVariables } = require("./env");
+const outputDir = process.env.EXAMPLE === "true" ? "example/public" : "dist";
 
 module.exports = {
   mode: "development",
@@ -9,11 +11,12 @@ module.exports = {
     "excalidraw.development": "./entry.js",
   },
   output: {
-    path: path.resolve(__dirname, "dist"),
-    library: "Excalidraw",
+    path: path.resolve(__dirname, outputDir),
+    library: "ExcalidrawLib",
     libraryTarget: "umd",
     filename: "[name].js",
     chunkFilename: "excalidraw-assets-dev/[name]-[contenthash].js",
+    assetModuleFilename: "excalidraw-assets-dev/[name][ext]",
     publicPath: "",
   },
   resolve: {
@@ -38,10 +41,22 @@ module.exports = {
           "sass-loader",
         ],
       },
+      // So that type module works with webpack
+      // https://github.com/webpack/webpack/issues/11467#issuecomment-691873586
+      {
+        test: /\.m?js/,
+        resolve: {
+          fullySpecified: false,
+        },
+      },
       {
         test: /\.(ts|tsx|js|jsx|mjs)$/,
-        exclude: /node_modules/,
+        exclude:
+          /node_modules[\\/](?!(browser-fs-access|canvas-roundrect-polyfill))/,
         use: [
+          {
+            loader: "import-meta-loader",
+          },
           {
             loader: "ts-loader",
             options: {
@@ -53,15 +68,7 @@ module.exports = {
       },
       {
         test: /\.(woff|woff2|eot|ttf|otf)$/,
-        use: [
-          {
-            loader: "file-loader",
-            options: {
-              name: "[name].[ext]",
-              outputPath: "excalidraw-assets-dev",
-            },
-          },
-        ],
+        type: "asset/resource",
       },
     ],
   },
@@ -76,7 +83,14 @@ module.exports = {
       },
     },
   },
-  plugins: [new webpack.EvalSourceMapDevToolPlugin({ exclude: /vendor/ })],
+  plugins: [
+    new webpack.EvalSourceMapDevToolPlugin({ exclude: /vendor/ }),
+    new webpack.DefinePlugin({
+      "process.env": parseEnvVariables(
+        path.resolve(__dirname, "../../../.env.development"),
+      ),
+    }),
+  ],
   externals: {
     react: {
       root: "React",

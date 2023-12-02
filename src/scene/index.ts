@@ -12,10 +12,8 @@ export {
   hasStrokeWidth,
   hasStrokeStyle,
   canHaveArrowheads,
-  canChangeSharpness,
+  canChangeRoundness,
   getElementAtPosition,
-  getElementContainingPosition,
-  hasText,
   getElementsAtPosition,
 } from "./comparisons";
-export { getNormalizedZoom, getNewZoom } from "./zoom";
+export { getNormalizedZoom } from "./zoom";

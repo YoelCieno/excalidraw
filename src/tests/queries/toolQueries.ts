@@ -1,21 +1,10 @@
 import { queries, buildQueries } from "@testing-library/react";
+import { ToolType } from "../../types";
+import { TOOL_TYPE } from "../../constants";
 
-const toolMap = {
-  selection: "selection",
-  rectangle: "rectangle",
-  diamond: "diamond",
-  ellipse: "ellipse",
-  arrow: "arrow",
-  line: "line",
-  freedraw: "freedraw",
-  text: "text",
-};
-
-export type ToolName = keyof typeof toolMap;
-
-const _getAllByToolName = (container: HTMLElement, tool: string) => {
-  const toolTitle = toolMap[tool as ToolName];
-  return queries.getAllByTestId(container, toolTitle);
+const _getAllByToolName = (container: HTMLElement, tool: ToolType | "lock") => {
+  const toolTitle = tool === "lock" ? "lock" : TOOL_TYPE[tool];
+  return queries.getAllByTestId(container, `toolbar-${toolTitle}`);
 };
 
 const getMultipleError = (_container: any, tool: any) =>
@@ -29,7 +18,7 @@ export const [
   getByToolName,
   findAllByToolName,
   findByToolName,
-] = buildQueries<string[]>(
+] = buildQueries<(ToolType | "lock")[]>(
   _getAllByToolName,
   getMultipleError,
   getMissingError,

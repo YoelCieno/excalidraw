@@ -1,14 +1,18 @@
-import { AppState } from "../types";
 import { NonDeletedExcalidrawElement } from "./types";
 import { getSelectedElements } from "../scene";
+import { UIAppState } from "../types";
 
 export const showSelectedShapeActions = (
-  appState: AppState,
+  appState: UIAppState,
   elements: readonly NonDeletedExcalidrawElement[],
 ) =>
   Boolean(
     !appState.viewModeEnabled &&
-      (appState.editingElement ||
-        getSelectedElements(elements, appState).length ||
-        appState.elementType !== "selection"),
+      ((appState.activeTool.type !== "custom" &&
+        (appState.editingElement ||
+          (appState.activeTool.type !== "selection" &&
+            appState.activeTool.type !== "eraser" &&
+            appState.activeTool.type !== "hand" &&
+            appState.activeTool.type !== "laser"))) ||
+        getSelectedElements(elements, appState).length),
   );

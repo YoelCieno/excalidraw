@@ -3,6 +3,8 @@ import { CODES, KEYS } from "../keys";
 
 export const actionToggleStats = register({
   name: "stats",
+  viewMode: true,
+  trackEvent: { category: "menu" },
   perform(elements, appState) {
     return {
       appState: {

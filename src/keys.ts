@@ -1,5 +1,4 @@
-export const isDarwin = /Mac|iPod|iPhone|iPad/.test(window.navigator.platform);
-export const isWindows = /^Win/.test(window.navigator.platform);
+import { isDarwin } from "./constants";
 
 export const CODES = {
   EQUAL: "Equal",
@@ -11,19 +10,18 @@ export const CODES = {
   BRACKET_LEFT: "BracketLeft",
   ONE: "Digit1",
   TWO: "Digit2",
+  THREE: "Digit3",
   NINE: "Digit9",
   QUOTE: "Quote",
   ZERO: "Digit0",
   SLASH: "Slash",
   C: "KeyC",
   D: "KeyD",
-  G: "KeyG",
-  F: "KeyF",
   H: "KeyH",
   V: "KeyV",
-  X: "KeyX",
   Z: "KeyZ",
   R: "KeyR",
+  S: "KeyS",
 } as const;
 
 export const KEYS = {
@@ -31,6 +29,8 @@ export const KEYS = {
   ARROW_LEFT: "ArrowLeft",
   ARROW_RIGHT: "ArrowRight",
   ARROW_UP: "ArrowUp",
+  PAGE_UP: "PageUp",
+  PAGE_DOWN: "PageDown",
   BACKSPACE: "Backspace",
   ALT: "Alt",
   CTRL_OR_CMD: isDarwin ? "metaKey" : "ctrlKey",
@@ -40,11 +40,20 @@ export const KEYS = {
   QUESTION_MARK: "?",
   SPACE: " ",
   TAB: "Tab",
+  CHEVRON_LEFT: "<",
+  CHEVRON_RIGHT: ">",
+  PERIOD: ".",
+  COMMA: ",",
+  SUBTRACT: "-",
 
   A: "a",
+  C: "c",
   D: "d",
   E: "e",
+  F: "f",
   G: "g",
+  H: "h",
+  I: "i",
   L: "l",
   O: "o",
   P: "p",
@@ -56,6 +65,19 @@ export const KEYS = {
   X: "x",
   Y: "y",
   Z: "z",
+  K: "k",
+  W: "w",
+
+  0: "0",
+  1: "1",
+  2: "2",
+  3: "3",
+  4: "4",
+  5: "5",
+  6: "6",
+  7: "7",
+  8: "8",
+  9: "9",
 } as const;
 
 export type Key = keyof typeof KEYS;
@@ -66,13 +88,12 @@ export const isArrowKey = (key: string) =>
   key === KEYS.ARROW_DOWN ||
   key === KEYS.ARROW_UP;
 
-export const getResizeCenterPointKey = (event: MouseEvent | KeyboardEvent) =>
+export const shouldResizeFromCenter = (event: MouseEvent | KeyboardEvent) =>
   event.altKey;
 
-export const getResizeWithSidesSameLengthKey = (
-  event: MouseEvent | KeyboardEvent,
-) => event.shiftKey;
+export const shouldMaintainAspectRatio = (event: MouseEvent | KeyboardEvent) =>
+  event.shiftKey;
 
-export const getRotateWithDiscreteAngleKey = (
-  event: MouseEvent | KeyboardEvent,
+export const shouldRotateWithDiscreteAngle = (
+  event: MouseEvent | KeyboardEvent | React.PointerEvent<HTMLCanvasElement>,
 ) => event.shiftKey;

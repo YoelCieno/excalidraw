@@ -10,7 +10,9 @@ export {
   newElement,
   newTextElement,
   updateTextElement,
+  refreshTextDimensions,
   newLinearElement,
+  newImageElement,
   duplicateElement,
 } from "./newElement";
 export {
@@ -52,20 +54,12 @@ export { textWysiwyg } from "./textWysiwyg";
 export { redrawTextBoundingBox } from "./textElement";
 export {
   getPerfectElementSize,
+  getLockedLinearCursorAlignSize,
   isInvisiblySmallElement,
   resizePerfectLineForNWHandler,
   getNormalizedDimensions,
 } from "./sizeHelpers";
 export { showSelectedShapeActions } from "./showSelectedShapeActions";
-
-export const getElementMap = (elements: readonly ExcalidrawElement[]) =>
-  elements.reduce(
-    (acc: { [key: string]: ExcalidrawElement }, element: ExcalidrawElement) => {
-      acc[element.id] = element;
-      return acc;
-    },
-    {},
-  );
 
 export const getSceneVersion = (elements: readonly ExcalidrawElement[]) =>
   elements.reduce((acc, el) => acc + el.version, 0);
@@ -75,10 +69,10 @@ export const getVisibleElements = (elements: readonly ExcalidrawElement[]) =>
     (el) => !el.isDeleted && !isInvisiblySmallElement(el),
   ) as readonly NonDeletedExcalidrawElement[];
 
-export const getNonDeletedElements = (elements: readonly ExcalidrawElement[]) =>
-  elements.filter(
-    (element) => !element.isDeleted,
-  ) as readonly NonDeletedExcalidrawElement[];
+export const getNonDeletedElements = <T extends ExcalidrawElement>(
+  elements: readonly T[],
+) =>
+  elements.filter((element) => !element.isDeleted) as readonly NonDeleted<T>[];
 
 export const isNonDeletedElement = <T extends ExcalidrawElement>(
   element: T,
@@ -92,6 +86,10 @@ const _clearElements = (
       ? { ...element, lastCommittedPoint: null }
       : element,
   );
+
+export const clearElementsForDatabase = (
+  elements: readonly ExcalidrawElement[],
+) => _clearElements(elements);
 
 export const clearElementsForExport = (
   elements: readonly ExcalidrawElement[],

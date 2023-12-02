@@ -1,16 +1,16 @@
-import colors from "./colors";
+import { COLOR_PALETTE } from "./colors";
 import {
-  CURSOR_TYPE,
   DEFAULT_VERSION,
+  EVENT,
   FONT_FAMILY,
+  isDarwin,
   WINDOWS_EMOJI_FALLBACK_FONT,
 } from "./constants";
 import { FontFamilyValues, FontString } from "./element/types";
-import { Zoom } from "./types";
+import { ActiveTool, AppState, ToolType, Zoom } from "./types";
 import { unstable_batchedUpdates } from "react-dom";
-import { isDarwin } from "./keys";
-
-export const SVG_NS = "http://www.w3.org/2000/svg";
+import { ResolutionType } from "./utility-types";
+import React from "react";
 
 let mockDateTime: string | null = null;
 
@@ -55,6 +55,13 @@ export const isInputLike = (
   target instanceof HTMLTextAreaElement ||
   target instanceof HTMLSelectElement;
 
+export const isInteractive = (target: Element | EventTarget | null) => {
+  return (
+    isInputLike(target) ||
+    (target instanceof Element && !!target.closest("label, button"))
+  );
+};
+
 export const isWritableElement = (
   target: Element | EventTarget | null,
 ): target is
@@ -66,7 +73,9 @@ export const isWritableElement = (
   target instanceof HTMLBRElement || // newline in wysiwyg
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLInputElement &&
-    (target.type === "text" || target.type === "number"));
+    (target.type === "text" ||
+      target.type === "number" ||
+      target.type === "password"));
 
 export const getFontFamilyString = ({
   fontFamily,
@@ -90,37 +99,6 @@ export const getFontString = ({
   fontFamily: FontFamilyValues;
 }) => {
   return `${fontSize}px ${getFontFamilyString({ fontFamily })}` as FontString;
-};
-
-// https://github.com/grassator/canvas-text-editor/blob/master/lib/FontMetrics.js
-export const measureText = (text: string, font: FontString) => {
-  const line = document.createElement("div");
-  const body = document.body;
-  line.style.position = "absolute";
-  line.style.whiteSpace = "pre";
-  line.style.font = font;
-  body.appendChild(line);
-  line.innerText = text
-    .split("\n")
-    // replace empty lines with single space because leading/trailing empty
-    // lines would be stripped from computation
-    .map((x) => x || " ")
-    .join("\n");
-  const width = line.offsetWidth;
-  const height = line.offsetHeight;
-  // Now creating 1px sized item that will be aligned to baseline
-  // to calculate baseline shift
-  const span = document.createElement("span");
-  span.style.display = "inline-block";
-  span.style.overflow = "hidden";
-  span.style.width = "1px";
-  span.style.height = "1px";
-  line.appendChild(span);
-  // Baseline is important for positioning text on canvas
-  const baseline = span.offsetTop + span.offsetHeight;
-  document.body.removeChild(line);
-
-  return { width, height, baseline };
 };
 
 export const debounce = <T extends any[]>(
@@ -152,6 +130,216 @@ export const debounce = <T extends any[]>(
   return ret;
 };
 
+// throttle callback to execute once per animation frame
+export const throttleRAF = <T extends any[]>(
+  fn: (...args: T) => void,
+  opts?: { trailing?: boolean },
+) => {
+  let timerId: number | null = null;
+  let lastArgs: T | null = null;
+  let lastArgsTrailing: T | null = null;
+
+  const scheduleFunc = (args: T) => {
+    timerId = window.requestAnimationFrame(() => {
+      timerId = null;
+      fn(...args);
+      lastArgs = null;
+      if (lastArgsTrailing) {
+        lastArgs = lastArgsTrailing;
+        lastArgsTrailing = null;
+        scheduleFunc(lastArgs);
+      }
+    });
+  };
+
+  const ret = (...args: T) => {
+    if (import.meta.env.MODE === "test") {
+      fn(...args);
+      return;
+    }
+    lastArgs = args;
+    if (timerId === null) {
+      scheduleFunc(lastArgs);
+    } else if (opts?.trailing) {
+      lastArgsTrailing = args;
+    }
+  };
+  ret.flush = () => {
+    if (timerId !== null) {
+      cancelAnimationFrame(timerId);
+      timerId = null;
+    }
+    if (lastArgs) {
+      fn(...(lastArgsTrailing || lastArgs));
+      lastArgs = lastArgsTrailing = null;
+    }
+  };
+  ret.cancel = () => {
+    lastArgs = lastArgsTrailing = null;
+    if (timerId !== null) {
+      cancelAnimationFrame(timerId);
+      timerId = null;
+    }
+  };
+  return ret;
+};
+
+/**
+ * Exponential ease-out method
+ *
+ * @param {number} k - The value to be tweened.
+ * @returns {number} The tweened value.
+ */
+export const easeOut = (k: number) => {
+  return 1 - Math.pow(1 - k, 4);
+};
+
+const easeOutInterpolate = (from: number, to: number, progress: number) => {
+  return (to - from) * easeOut(progress) + from;
+};
+
+/**
+ * Animates values from `fromValues` to `toValues` using the requestAnimationFrame API.
+ * Executes the `onStep` callback on each step with the interpolated values.
+ * Returns a function that can be called to cancel the animation.
+ *
+ * @example
+ * // Example usage:
+ * const fromValues = { x: 0, y: 0 };
+ * const toValues = { x: 100, y: 200 };
+ * const onStep = ({x, y}) => {
+ *   setState(x, y)
+ * };
+ * const onCancel = () => {
+ *   console.log("Animation canceled");
+ * };
+ *
+ * const cancelAnimation = easeToValuesRAF({
+ *   fromValues,
+ *   toValues,
+ *   onStep,
+ *   onCancel,
+ * });
+ *
+ * // To cancel the animation:
+ * cancelAnimation();
+ */
+export const easeToValuesRAF = <
+  T extends Record<keyof T, number>,
+  K extends keyof T,
+>({
+  fromValues,
+  toValues,
+  onStep,
+  duration = 250,
+  interpolateValue,
+  onStart,
+  onEnd,
+  onCancel,
+}: {
+  fromValues: T;
+  toValues: T;
+  /**
+   * Interpolate a single value.
+   * Return undefined to be handled by the default interpolator.
+   */
+  interpolateValue?: (
+    fromValue: number,
+    toValue: number,
+    /** no easing applied  */
+    progress: number,
+    key: K,
+  ) => number | undefined;
+  onStep: (values: T) => void;
+  duration?: number;
+  onStart?: () => void;
+  onEnd?: () => void;
+  onCancel?: () => void;
+}) => {
+  let canceled = false;
+  let frameId = 0;
+  let startTime: number;
+
+  function step(timestamp: number) {
+    if (canceled) {
+      return;
+    }
+    if (startTime === undefined) {
+      startTime = timestamp;
+      onStart?.();
+    }
+
+    const elapsed = Math.min(timestamp - startTime, duration);
+    const factor = easeOut(elapsed / duration);
+
+    const newValues = {} as T;
+
+    Object.keys(fromValues).forEach((key) => {
+      const _key = key as keyof T;
+      const result = ((toValues[_key] - fromValues[_key]) * factor +
+        fromValues[_key]) as T[keyof T];
+      newValues[_key] = result;
+    });
+
+    onStep(newValues);
+
+    if (elapsed < duration) {
+      const progress = elapsed / duration;
+
+      const newValues = {} as T;
+
+      Object.keys(fromValues).forEach((key) => {
+        const _key = key as K;
+        const startValue = fromValues[_key];
+        const endValue = toValues[_key];
+
+        let result;
+
+        result = interpolateValue
+          ? interpolateValue(startValue, endValue, progress, _key)
+          : easeOutInterpolate(startValue, endValue, progress);
+
+        if (result == null) {
+          result = easeOutInterpolate(startValue, endValue, progress);
+        }
+
+        newValues[_key] = result as T[K];
+      });
+      onStep(newValues);
+
+      frameId = window.requestAnimationFrame(step);
+    } else {
+      onStep(toValues);
+      onEnd?.();
+    }
+  }
+
+  frameId = window.requestAnimationFrame(step);
+
+  return () => {
+    onCancel?.();
+    canceled = true;
+    window.cancelAnimationFrame(frameId);
+  };
+};
+
+// https://github.com/lodash/lodash/blob/es/chunk.js
+export const chunk = <T extends any>(
+  array: readonly T[],
+  size: number,
+): T[][] => {
+  if (!array.length || size < 1) {
+    return [];
+  }
+  let index = 0;
+  let resIndex = 0;
+  const result = Array(Math.ceil(array.length / size));
+  while (index < array.length) {
+    result[resIndex++] = array.slice(index, (index += size));
+  }
+  return result;
+};
+
 export const selectNode = (node: Element) => {
   const selection = window.getSelection();
   if (selection) {
@@ -171,30 +359,36 @@ export const removeSelection = () => {
 
 export const distance = (x: number, y: number) => Math.abs(x - y);
 
-export const resetCursor = (canvas: HTMLCanvasElement | null) => {
-  if (canvas) {
-    canvas.style.cursor = "";
+export const updateActiveTool = (
+  appState: Pick<AppState, "activeTool">,
+  data: ((
+    | {
+        type: ToolType;
+      }
+    | { type: "custom"; customType: string }
+  ) & { locked?: boolean }) & {
+    lastActiveToolBeforeEraser?: ActiveTool | null;
+  },
+): AppState["activeTool"] => {
+  if (data.type === "custom") {
+    return {
+      ...appState.activeTool,
+      type: "custom",
+      customType: data.customType,
+      locked: data.locked ?? appState.activeTool.locked,
+    };
   }
-};
 
-export const setCursor = (canvas: HTMLCanvasElement | null, cursor: string) => {
-  if (canvas) {
-    canvas.style.cursor = cursor;
-  }
-};
-
-export const setCursorForShape = (
-  canvas: HTMLCanvasElement | null,
-  shape: string,
-) => {
-  if (!canvas) {
-    return;
-  }
-  if (shape === "selection") {
-    resetCursor(canvas);
-  } else {
-    canvas.style.cursor = CURSOR_TYPE.CROSSHAIR;
-  }
+  return {
+    ...appState.activeTool,
+    lastActiveTool:
+      data.lastActiveToolBeforeEraser === undefined
+        ? appState.activeTool.lastActiveTool
+        : data.lastActiveToolBeforeEraser,
+    type: data.type,
+    customType: null,
+    locked: data.locked ?? appState.activeTool.locked,
+  };
 };
 
 export const isFullScreen = () =>
@@ -209,15 +403,13 @@ export const getShortcutKey = (shortcut: string): string => {
   shortcut = shortcut
     .replace(/\bAlt\b/i, "Alt")
     .replace(/\bShift\b/i, "Shift")
-    .replace(/\b(Enter|Return)\b/i, "Enter")
-    .replace(/\bDel\b/i, "Delete");
-
+    .replace(/\b(Enter|Return)\b/i, "Enter");
   if (isDarwin) {
     return shortcut
-      .replace(/\bCtrlOrCmd\b/i, "Cmd")
+      .replace(/\bCtrlOrCmd\b/gi, "Cmd")
       .replace(/\bAlt\b/i, "Option");
   }
-  return shortcut.replace(/\bCtrlOrCmd\b/i, "Ctrl");
+  return shortcut.replace(/\bCtrlOrCmd\b/gi, "Ctrl");
 };
 
 export const viewportCoordsToSceneCoords = (
@@ -236,9 +428,9 @@ export const viewportCoordsToSceneCoords = (
     scrollY: number;
   },
 ) => {
-  const invScale = 1 / zoom.value;
-  const x = (clientX - zoom.translation.x - offsetLeft) * invScale - scrollX;
-  const y = (clientY - zoom.translation.y - offsetTop) * invScale - scrollY;
+  const x = (clientX - offsetLeft) / zoom.value - scrollX;
+  const y = (clientY - offsetTop) / zoom.value - scrollY;
+
   return { x, y };
 };
 
@@ -258,8 +450,8 @@ export const sceneCoordsToViewportCoords = (
     scrollY: number;
   },
 ) => {
-  const x = (sceneX + scrollX + offsetLeft) * zoom.value + zoom.translation.x;
-  const y = (sceneY + scrollY + offsetTop) * zoom.value + zoom.translation.y;
+  const x = (sceneX + scrollX) * zoom.value + offsetLeft;
+  const y = (sceneY + scrollY) * zoom.value + offsetTop;
   return { x, y };
 };
 
@@ -289,6 +481,7 @@ export const tupleToCoors = (
 /** use as a rejectionHandler to mute filesystem Abort errors */
 export const muteFSAbortError = (error?: Error) => {
   if (error?.name === "AbortError") {
+    console.warn(error);
     return;
   }
   throw error;
@@ -336,7 +529,7 @@ export const isTransparent = (color: string) => {
   return (
     isRGBTransparent ||
     isRRGGBBTransparent ||
-    color === colors.elementBackground[0]
+    color === COLOR_PALETTE.transparent
   );
 };
 
@@ -360,13 +553,28 @@ export const resolvablePromise = <T>() => {
  * @param func handler taking at most single parameter (event).
  */
 export const withBatchedUpdates = <
-  TFunction extends ((event: any) => void) | (() => void)
+  TFunction extends ((event: any) => void) | (() => void),
 >(
   func: Parameters<TFunction>["length"] extends 0 | 1 ? TFunction : never,
 ) =>
   ((event) => {
     unstable_batchedUpdates(func as TFunction, event);
   }) as TFunction;
+
+/**
+ * barches React state updates and throttles the calls to a single call per
+ * animation frame
+ */
+export const withBatchedUpdatesThrottled = <
+  TFunction extends ((event: any) => void) | (() => void),
+>(
+  func: Parameters<TFunction>["length"] extends 0 | 1 ? TFunction : never,
+) => {
+  // @ts-ignore
+  return throttleRAF<Parameters<TFunction>>(((event) => {
+    unstable_batchedUpdates(func, event);
+  }) as TFunction);
+};
 
 //https://stackoverflow.com/a/9462382/8418
 export const nFormatter = (num: number, digits: number): string => {
@@ -424,7 +632,9 @@ export const getNearestScrollableContainer = (
     const hasScrollableContent = parent.scrollHeight > parent.clientHeight;
     if (
       hasScrollableContent &&
-      (overflowY === "auto" || overflowY === "scroll")
+      (overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay")
     ) {
       return parent;
     }
@@ -442,4 +652,280 @@ export const focusNearestParent = (element: HTMLInputElement) => {
     }
     parent = parent.parentElement;
   }
+};
+
+export const preventUnload = (event: BeforeUnloadEvent) => {
+  event.preventDefault();
+  // NOTE: modern browsers no longer allow showing a custom message here
+  event.returnValue = "";
+};
+
+export const bytesToHexString = (bytes: Uint8Array) => {
+  return Array.from(bytes)
+    .map((byte) => `0${byte.toString(16)}`.slice(-2))
+    .join("");
+};
+
+export const getUpdatedTimestamp = () => (isTestEnv() ? 1 : Date.now());
+
+/**
+ * Transforms array of objects containing `id` attribute,
+ * or array of ids (strings), into a Map, keyd by `id`.
+ */
+export const arrayToMap = <T extends { id: string } | string>(
+  items: readonly T[],
+) => {
+  return items.reduce((acc: Map<string, T>, element) => {
+    acc.set(typeof element === "string" ? element : element.id, element);
+    return acc;
+  }, new Map());
+};
+
+export const arrayToMapWithIndex = <T extends { id: string }>(
+  elements: readonly T[],
+) =>
+  elements.reduce((acc, element: T, idx) => {
+    acc.set(element.id, [element, idx]);
+    return acc;
+  }, new Map<string, [element: T, index: number]>());
+
+export const isTestEnv = () => import.meta.env.MODE === "test";
+
+export const wrapEvent = <T extends Event>(name: EVENT, nativeEvent: T) => {
+  return new CustomEvent(name, {
+    detail: {
+      nativeEvent,
+    },
+    cancelable: true,
+  });
+};
+
+export const updateObject = <T extends Record<string, any>>(
+  obj: T,
+  updates: Partial<T>,
+): T => {
+  let didChange = false;
+  for (const key in updates) {
+    const value = (updates as any)[key];
+    if (typeof value !== "undefined") {
+      if (
+        (obj as any)[key] === value &&
+        // if object, always update because its attrs could have changed
+        (typeof value !== "object" || value === null)
+      ) {
+        continue;
+      }
+      didChange = true;
+    }
+  }
+
+  if (!didChange) {
+    return obj;
+  }
+
+  return {
+    ...obj,
+    ...updates,
+  };
+};
+
+export const isPrimitive = (val: any) => {
+  const type = typeof val;
+  return val == null || (type !== "object" && type !== "function");
+};
+
+export const getFrame = () => {
+  try {
+    return window.self === window.top ? "top" : "iframe";
+  } catch (error) {
+    return "iframe";
+  }
+};
+
+export const isRunningInIframe = () => getFrame() === "iframe";
+
+export const isPromiseLike = (
+  value: any,
+): value is Promise<ResolutionType<typeof value>> => {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "then" in value &&
+    "catch" in value &&
+    "finally" in value
+  );
+};
+
+export const queryFocusableElements = (container: HTMLElement | null) => {
+  const focusableElements = container?.querySelectorAll<HTMLElement>(
+    "button, a, input, select, textarea, div[tabindex], label[tabindex]",
+  );
+
+  return focusableElements
+    ? Array.from(focusableElements).filter(
+        (element) =>
+          element.tabIndex > -1 && !(element as HTMLInputElement).disabled,
+      )
+    : [];
+};
+
+export const isShallowEqual = <
+  T extends Record<string, any>,
+  I extends keyof T,
+>(
+  objA: T,
+  objB: T,
+  comparators?: Record<I, (a: T[I], b: T[I]) => boolean>,
+  debug = false,
+) => {
+  const aKeys = Object.keys(objA);
+  const bKeys = Object.keys(objB);
+  if (aKeys.length !== bKeys.length) {
+    return false;
+  }
+  return aKeys.every((key) => {
+    const comparator = comparators?.[key as I];
+    const ret = comparator
+      ? comparator(objA[key], objB[key])
+      : objA[key] === objB[key];
+    if (!ret && debug) {
+      console.info(
+        `%cisShallowEqual: ${key} not equal ->`,
+        "color: #8B4000",
+        objA[key],
+        objB[key],
+      );
+    }
+    return ret;
+  });
+};
+
+// taken from Radix UI
+// https://github.com/radix-ui/primitives/blob/main/packages/core/primitive/src/primitive.tsx
+export const composeEventHandlers = <E>(
+  originalEventHandler?: (event: E) => void,
+  ourEventHandler?: (event: E) => void,
+  { checkForDefaultPrevented = true } = {},
+) => {
+  return function handleEvent(event: E) {
+    originalEventHandler?.(event);
+
+    if (
+      !checkForDefaultPrevented ||
+      !(event as unknown as Event).defaultPrevented
+    ) {
+      return ourEventHandler?.(event);
+    }
+  };
+};
+
+/**
+ * supply `null` as message if non-never value is valid, you just need to
+ * typecheck against it
+ */
+export const assertNever = (
+  value: never,
+  message: string | null,
+  softAssert?: boolean,
+): never => {
+  if (!message) {
+    return value;
+  }
+  if (softAssert) {
+    console.error(message);
+    return value;
+  }
+
+  throw new Error(message);
+};
+
+/**
+ * Memoizes on values of `opts` object (strict equality).
+ */
+export const memoize = <T extends Record<string, any>, R extends any>(
+  func: (opts: T) => R,
+) => {
+  let lastArgs: Map<string, any> | undefined;
+  let lastResult: R | undefined;
+
+  const ret = function (opts: T) {
+    const currentArgs = Object.entries(opts);
+
+    if (lastArgs) {
+      let argsAreEqual = true;
+      for (const [key, value] of currentArgs) {
+        if (lastArgs.get(key) !== value) {
+          argsAreEqual = false;
+          break;
+        }
+      }
+      if (argsAreEqual) {
+        return lastResult;
+      }
+    }
+
+    const result = func(opts);
+
+    lastArgs = new Map(currentArgs);
+    lastResult = result;
+
+    return result;
+  };
+
+  ret.clear = () => {
+    lastArgs = undefined;
+    lastResult = undefined;
+  };
+
+  return ret as typeof func & { clear: () => void };
+};
+
+export const isRenderThrottlingEnabled = (() => {
+  // we don't want to throttle in react < 18 because of #5439 and it was
+  // getting more complex to maintain the fix
+  let IS_REACT_18_AND_UP: boolean;
+  try {
+    const version = React.version.split(".");
+    IS_REACT_18_AND_UP = Number(version[0]) > 17;
+  } catch {
+    IS_REACT_18_AND_UP = false;
+  }
+
+  let hasWarned = false;
+
+  return () => {
+    if (window.EXCALIDRAW_THROTTLE_RENDER === true) {
+      if (!IS_REACT_18_AND_UP) {
+        if (!hasWarned) {
+          hasWarned = true;
+          console.warn(
+            "Excalidraw: render throttling is disabled on React versions < 18.",
+          );
+        }
+        return false;
+      }
+      return true;
+    }
+    return false;
+  };
+})();
+
+/** Checks if value is inside given collection. Useful for type-safety. */
+export const isMemberOf = <T extends string>(
+  /** Set/Map/Array/Object */
+  collection: Set<T> | readonly T[] | Record<T, any> | Map<T, any>,
+  /** value to look for */
+  value: string,
+): value is T => {
+  return collection instanceof Set || collection instanceof Map
+    ? collection.has(value as T)
+    : "includes" in collection
+    ? collection.includes(value as T)
+    : collection.hasOwnProperty(value);
+};
+
+export const cloneJSON = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
+
+export const isFiniteNumber = (value: any): value is number => {
+  return typeof value === "number" && Number.isFinite(value);
 };

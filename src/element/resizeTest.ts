@@ -13,6 +13,7 @@ import {
   MaybeTransformHandleType,
 } from "./transformHandles";
 import { AppState, Zoom } from "../types";
+import { Bounds } from "./bounds";
 
 const isInsideTransformHandle = (
   transformHandle: TransformHandle,
@@ -36,10 +37,8 @@ export const resizeTest = (
     return false;
   }
 
-  const {
-    rotation: rotationTransformHandle,
-    ...transformHandles
-  } = getTransformHandles(element, zoom, pointerType);
+  const { rotation: rotationTransformHandle, ...transformHandles } =
+    getTransformHandles(element, zoom, pointerType);
 
   if (
     rotationTransformHandle &&
@@ -49,9 +48,8 @@ export const resizeTest = (
   }
 
   const filter = Object.keys(transformHandles).filter((key) => {
-    const transformHandle = transformHandles[
-      key as Exclude<TransformHandleType, "rotation">
-    ]!;
+    const transformHandle =
+      transformHandles[key as Exclude<TransformHandleType, "rotation">]!;
     if (!transformHandle) {
       return false;
     }
@@ -90,14 +88,14 @@ export const getElementWithTransformHandleType = (
 };
 
 export const getTransformHandleTypeFromCoords = (
-  [x1, y1, x2, y2]: readonly [number, number, number, number],
+  [x1, y1, x2, y2]: Bounds,
   scenePointerX: number,
   scenePointerY: number,
   zoom: Zoom,
   pointerType: PointerType,
 ): MaybeTransformHandleType => {
   const transformHandles = getTransformHandlesFromCoords(
-    [x1, y1, x2, y2],
+    [x1, y1, x2, y2, (x1 + x2) / 2, (y1 + y2) / 2],
     0,
     zoom,
     pointerType,
@@ -105,9 +103,8 @@ export const getTransformHandleTypeFromCoords = (
   );
 
   const found = Object.keys(transformHandles).find((key) => {
-    const transformHandle = transformHandles[
-      key as Exclude<TransformHandleType, "rotation">
-    ]!;
+    const transformHandle =
+      transformHandles[key as Exclude<TransformHandleType, "rotation">]!;
     return (
       transformHandle &&
       isInsideTransformHandle(transformHandle, scenePointerX, scenePointerY)

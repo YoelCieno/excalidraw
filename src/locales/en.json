@@ -1,6 +1,7 @@
 {
   "labels": {
     "paste": "Paste",
+    "pasteAsPlaintext": "Paste as plaintext",
     "pasteCharts": "Paste charts",
     "selectAll": "Select all",
     "multiSelect": "Add element to selection",
@@ -9,6 +10,9 @@
     "copy": "Copy",
     "copyAsPng": "Copy to clipboard as PNG",
     "copyAsSvg": "Copy to clipboard as SVG",
+    "copyText": "Copy to clipboard as text",
+    "copySource": "Copy source to clipboard",
+    "convertToCode": "Convert to code",
     "bringForward": "Bring forward",
     "sendToBack": "Send to back",
     "bringToFront": "Bring to front",
@@ -20,10 +24,6 @@
     "background": "Background",
     "fill": "Fill",
     "strokeWidth": "Stroke width",
-    "strokeShape": "Stroke shape",
-    "strokeShape_gel": "Gel pen",
-    "strokeShape_fountain": "Fountain pen",
-    "strokeShape_brush": "Brush pen",
     "strokeStyle": "Stroke style",
     "strokeStyle_solid": "Solid",
     "strokeStyle_dashed": "Dashed",
@@ -39,12 +39,9 @@
     "arrowhead_arrow": "Arrow",
     "arrowhead_bar": "Bar",
     "arrowhead_dot": "Dot",
+    "arrowhead_triangle": "Triangle",
     "fontSize": "Font size",
     "fontFamily": "Font family",
-    "onlySelected": "Only selected",
-    "withBackground": "Background",
-    "exportEmbedScene": "Embed scene",
-    "exportEmbedScene_details": "Scene data will be saved into the exported PNG/SVG file so that the scene can be restored from it.\nWill increase exported file size.",
     "addWatermark": "Add \"Made with Excalidraw\"",
     "handDrawn": "Hand-drawn",
     "normal": "Normal",
@@ -55,6 +52,7 @@
     "veryLarge": "Very large",
     "solid": "Solid",
     "hachure": "Hachure",
+    "zigzag": "Zigzag",
     "crossHatch": "Cross-hatch",
     "thin": "Thin",
     "bold": "Bold",
@@ -67,12 +65,13 @@
     "cartoonist": "Cartoonist",
     "fileTitle": "File name",
     "colorPicker": "Color picker",
+    "canvasColors": "Used on canvas",
     "canvasBackground": "Canvas background",
     "drawingCanvas": "Drawing canvas",
     "layers": "Layers",
     "actions": "Actions",
     "language": "Language",
-    "liveCollaboration": "Live collaboration",
+    "liveCollaboration": "Live collaboration...",
     "duplicateSelection": "Duplicate",
     "untitled": "Untitled",
     "name": "Name",
@@ -99,25 +98,58 @@
     "flipHorizontal": "Flip horizontal",
     "flipVertical": "Flip vertical",
     "viewMode": "View mode",
-    "toggleExportColorScheme": "Toggle export color scheme",
     "share": "Share",
     "showStroke": "Show stroke color picker",
     "showBackground": "Show background color picker",
-    "toggleTheme": "Toggle theme"
+    "toggleTheme": "Toggle theme",
+    "personalLib": "Personal Library",
+    "excalidrawLib": "Excalidraw Library",
+    "decreaseFontSize": "Decrease font size",
+    "increaseFontSize": "Increase font size",
+    "unbindText": "Unbind text",
+    "bindText": "Bind text to the container",
+    "createContainerFromText": "Wrap text in a container",
+    "link": {
+      "edit": "Edit link",
+      "editEmbed": "Edit link & embed",
+      "create": "Create link",
+      "createEmbed": "Create link & embed",
+      "label": "Link",
+      "labelEmbed": "Link & embed",
+      "empty": "No link is set"
+    },
+    "lineEditor": {
+      "edit": "Edit line",
+      "exit": "Exit line editor"
+    },
+    "elementLock": {
+      "lock": "Lock",
+      "unlock": "Unlock",
+      "lockAll": "Lock all",
+      "unlockAll": "Unlock all"
+    },
+    "statusPublished": "Published",
+    "sidebarLock": "Keep sidebar open",
+    "selectAllElementsInFrame": "Select all elements in frame",
+    "removeAllElementsFromFrame": "Remove all elements from frame",
+    "eyeDropper": "Pick color from canvas",
+    "textToDiagram": "Text to diagram",
+    "prompt": "Prompt"
+  },
+  "library": {
+    "noItems": "No items added yet...",
+    "hint_emptyLibrary": "Select an item on canvas to add it here, or install a library from the public repository, below.",
+    "hint_emptyPrivateLibrary": "Select an item on canvas to add it here."
   },
   "buttons": {
     "clearReset": "Reset the canvas",
     "exportJSON": "Export to file",
-    "exportImage": "Save as image",
-    "export": "Export",
-    "exportToPng": "Export to PNG",
-    "exportToSvg": "Export to SVG",
+    "exportImage": "Export image...",
+    "export": "Save to...",
     "copyToClipboard": "Copy to clipboard",
-    "copyPngToClipboard": "Copy PNG to clipboard",
-    "scale": "Scale",
     "save": "Save to current file",
     "saveAs": "Save as",
-    "load": "Load",
+    "load": "Open",
     "getShareableLink": "Get shareable link",
     "close": "Close",
     "selectLanguage": "Select language",
@@ -136,7 +168,16 @@
     "darkMode": "Dark mode",
     "lightMode": "Light mode",
     "zenMode": "Zen mode",
-    "exitZenMode": "Exit zen mode"
+    "objectsSnapMode": "Snap to objects",
+    "exitZenMode": "Exit zen mode",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "remove": "Remove",
+    "embed": "Toggle embedding",
+    "publishLibrary": "Publish",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "embeddableInteractionButton": "Click to interact"
   },
   "alerts": {
     "clearReset": "This will clear the whole canvas. Are you sure?",
@@ -145,23 +186,52 @@
     "couldNotLoadInvalidFile": "Couldn't load invalid file",
     "importBackendFailed": "Importing from backend failed.",
     "cannotExportEmptyCanvas": "Cannot export empty canvas.",
-    "couldNotCopyToClipboard": "Couldn't copy to clipboard. Try using Chrome browser.",
+    "couldNotCopyToClipboard": "Couldn't copy to clipboard.",
     "decryptFailed": "Couldn't decrypt data.",
     "uploadedSecurly": "The upload has been secured with end-to-end encryption, which means that Excalidraw server and third parties can't read the content.",
     "loadSceneOverridePrompt": "Loading external drawing will replace your existing content. Do you wish to continue?",
     "collabStopOverridePrompt": "Stopping the session will overwrite your previous, locally stored drawing. Are you sure?\n\n(If you want to keep your local drawing, simply close the browser tab instead.)",
-    "errorLoadingLibrary": "There was an error loading the third party library.",
     "errorAddingToLibrary": "Couldn't add item to the library",
     "errorRemovingFromLibrary": "Couldn't remove item from the library",
     "confirmAddLibrary": "This will add {{numShapes}} shape(s) to your library. Are you sure?",
-    "imageDoesNotContainScene": "Importing images isn't supported at the moment.\n\nDid you want to import a scene? This image does not seem to contain any scene data. Have you enabled this during export?",
+    "imageDoesNotContainScene": "This image does not seem to contain any scene data. Have you enabled scene embedding during export?",
     "cannotRestoreFromImage": "Scene couldn't be restored from this image file",
     "invalidSceneUrl": "Couldn't import scene from the supplied URL. It's either malformed, or doesn't contain valid Excalidraw JSON data.",
     "resetLibrary": "This will clear your library. Are you sure?",
-    "invalidEncryptionKey": "Encryption key must be of 22 characters. Live collaboration is disabled."
+    "removeItemsFromsLibrary": "Delete {{count}} item(s) from library?",
+    "invalidEncryptionKey": "Encryption key must be of 22 characters. Live collaboration is disabled.",
+    "collabOfflineWarning": "No internet connection available.\nYour changes will not be saved!"
+  },
+  "errors": {
+    "unsupportedFileType": "Unsupported file type.",
+    "imageInsertError": "Couldn't insert image. Try again later...",
+    "fileTooBig": "File is too big. Maximum allowed size is {{maxSize}}.",
+    "svgImageInsertError": "Couldn't insert SVG image. The SVG markup looks invalid.",
+    "failedToFetchImage": "Failed to fetch image.",
+    "invalidSVGString": "Invalid SVG.",
+    "cannotResolveCollabServer": "Couldn't connect to the collab server. Please reload the page and try again.",
+    "importLibraryError": "Couldn't load library",
+    "collabSaveFailed": "Couldn't save to the backend database. If problems persist, you should save your file locally to ensure you don't lose your work.",
+    "collabSaveFailed_sizeExceeded": "Couldn't save to the backend database, the canvas seems to be too big. You should save the file locally to ensure you don't lose your work.",
+    "imageToolNotSupported": "Images are disabled.",
+    "brave_measure_text_error": {
+      "line1": "Looks like you are using Brave browser with the <bold>Aggressively Block Fingerprinting</bold> setting enabled.",
+      "line2": "This could result in breaking the <bold>Text Elements</bold> in your drawings.",
+      "line3": "We strongly recommend disabling this setting. You can follow <link>these steps</link> on how to do so.",
+      "line4": "If disabling this setting doesn't fix the display of text elements, please open an <issueLink>issue</issueLink> on our GitHub, or write us on <discordLink>Discord</discordLink>"
+    },
+    "libraryElementTypeError": {
+      "embeddable": "Embeddable elements cannot be added to the library.",
+      "iframe": "IFrame elements cannot be added to the library.",
+      "image": "Support for adding images to the library coming soon!"
+    },
+    "asyncPasteFailedOnRead": "Couldn't paste (couldn't read from system clipboard).",
+    "asyncPasteFailedOnParse": "Couldn't paste.",
+    "copyToSystemClipboardFailed": "Couldn't copy to clipboard."
   },
   "toolBar": {
     "selection": "Selection",
+    "image": "Insert image",
     "rectangle": "Rectangle",
     "diamond": "Diamond",
     "ellipse": "Ellipse",
@@ -170,7 +240,18 @@
     "freedraw": "Draw",
     "text": "Text",
     "library": "Library",
-    "lock": "Keep selected tool active after drawing"
+    "lock": "Keep selected tool active after drawing",
+    "penMode": "Pen mode - prevent touch",
+    "link": "Add/ Update link for a selected shape",
+    "eraser": "Eraser",
+    "frame": "Frame tool",
+    "magicframe": "Wireframe to code",
+    "embeddable": "Web Embed",
+    "laser": "Laser pointer",
+    "hand": "Hand (panning tool)",
+    "extraTools": "More tools",
+    "mermaidToExcalidraw": "Mermaid to Excalidraw",
+    "magicSettings": "AI settings"
   },
   "headings": {
     "canvasActions": "Canvas actions",
@@ -178,18 +259,28 @@
     "shapes": "Shapes"
   },
   "hints": {
+    "canvasPanning": "To move canvas, hold mouse wheel or spacebar while dragging, or use the hand tool",
     "linearElement": "Click to start multiple points, drag for single line",
     "freeDraw": "Click and drag, release when you're finished",
     "text": "Tip: you can also add text by double-clicking anywhere with the selection tool",
+    "embeddable": "Click-drag to create a website embed",
     "text_selected": "Double-click or press ENTER to edit text",
     "text_editing": "Press Escape or CtrlOrCmd+ENTER to finish editing",
     "linearElementMulti": "Click on last point or press Escape or Enter to finish",
     "lockAngle": "You can constrain angle by holding SHIFT",
     "resize": "You can constrain proportions by holding SHIFT while resizing,\nhold ALT to resize from the center",
+    "resizeImage": "You can resize freely by holding SHIFT,\nhold ALT to resize from the center",
     "rotate": "You can constrain angles by holding SHIFT while rotating",
-    "lineEditor_info": "Double-click or press Enter to edit points",
-    "lineEditor_pointSelected": "Press Delete to remove point, CtrlOrCmd+D to duplicate, or drag to move",
-    "lineEditor_nothingSelected": "Select a point to move or remove, or hold Alt and click to add new points"
+    "lineEditor_info": "Hold CtrlOrCmd and Double-click or press CtrlOrCmd + Enter to edit points",
+    "lineEditor_pointSelected": "Press Delete to remove point(s),\nCtrlOrCmd+D to duplicate, or drag to move",
+    "lineEditor_nothingSelected": "Select a point to edit (hold SHIFT to select multiple),\nor hold Alt and click to add new points",
+    "placeImage": "Click to place the image, or click and drag to set its size manually",
+    "publishLibrary": "Publish your own library",
+    "bindTextToElement": "Press enter to add text",
+    "deepBoxSelect": "Hold CtrlOrCmd to deep select, and to prevent dragging",
+    "eraserRevert": "Hold Alt to revert the elements marked for deletion",
+    "firefox_clipboard_write": "This feature can likely be enabled by setting the \"dom.events.asyncClipboard.clipboardItem\" flag to \"true\". To change the browser flags in Firefox, visit the \"about:config\" page.",
+    "disableSnapping": "Hold CtrlOrCmd to disable snapping"
   },
   "canvasError": {
     "cannotShowPreview": "Cannot show preview",
@@ -197,16 +288,11 @@
     "canvasTooBigTip": "Tip: try moving the farthest elements a bit closer together."
   },
   "errorSplash": {
-    "headingMain_pre": "Encountered an error. Try ",
-    "headingMain_button": "reloading the page.",
-    "clearCanvasMessage": "If reloading doesn't work, try ",
-    "clearCanvasMessage_button": "clearing the canvas.",
+    "headingMain": "Encountered an error. Try <button>reloading the page</button>.",
+    "clearCanvasMessage": "If reloading doesn't work, try <button>clearing the canvas</button>.",
     "clearCanvasCaveat": " This will result in loss of work ",
-    "trackedToSentry_pre": "The error with identifier ",
-    "trackedToSentry_post": " was tracked on our system.",
-    "openIssueMessage_pre": "We were very cautious not to include your scene information on the error. If your scene is not private, please consider following up on our ",
-    "openIssueMessage_button": "bug tracker.",
-    "openIssueMessage_post": " Please include information below by copying and pasting into the GitHub issue.",
+    "trackedToSentry": "The error with identifier {{eventId}} was tracked on our system.",
+    "openIssueMessage": "We were very cautious not to include your scene information on the error. If your scene is not private, please consider following up on our <button>bug tracker</button>. Please include information below by copying and pasting into the GitHub issue.",
     "sceneContent": "Scene content:"
   },
   "roomDialog": {
@@ -236,25 +322,94 @@
   "helpDialog": {
     "blog": "Read our blog",
     "click": "click",
+    "deepSelect": "Deep select",
+    "deepBoxSelect": "Deep select within box, and prevent dragging",
     "curvedArrow": "Curved arrow",
     "curvedLine": "Curved line",
     "documentation": "Documentation",
     "doubleClick": "double-click",
     "drag": "drag",
     "editor": "Editor",
-    "editSelectedShape": "Edit selected shape (text/arrow/line)",
+    "editLineArrowPoints": "Edit line/arrow points",
+    "editText": "Edit text / add label",
     "github": "Found an issue? Submit",
     "howto": "Follow our guides",
     "or": "or",
     "preventBinding": "Prevent arrow binding",
-    "shapes": "Shapes",
+    "tools": "Tools",
     "shortcuts": "Keyboard shortcuts",
     "textFinish": "Finish editing (text editor)",
     "textNewLine": "Add new line (text editor)",
     "title": "Help",
     "view": "View",
     "zoomToFit": "Zoom to fit all elements",
-    "zoomToSelection": "Zoom to selection"
+    "zoomToSelection": "Zoom to selection",
+    "toggleElementLock": "Lock/unlock selection",
+    "movePageUpDown": "Move page up/down",
+    "movePageLeftRight": "Move page left/right"
+  },
+  "clearCanvasDialog": {
+    "title": "Clear canvas"
+  },
+  "publishDialog": {
+    "title": "Publish library",
+    "itemName": "Item name",
+    "authorName": "Author name",
+    "githubUsername": "GitHub username",
+    "twitterUsername": "Twitter username",
+    "libraryName": "Library name",
+    "libraryDesc": "Library description",
+    "website": "Website",
+    "placeholder": {
+      "authorName": "Your name or username",
+      "libraryName": "Name of your library",
+      "libraryDesc": "Description of your library to help people understand its usage",
+      "githubHandle": "GitHub handle (optional), so you can edit the library once submitted for review",
+      "twitterHandle": "Twitter username (optional), so we know who to credit when promoting over Twitter",
+      "website": "Link to your personal website or elsewhere (optional)"
+    },
+    "errors": {
+      "required": "Required",
+      "website": "Enter a valid URL"
+    },
+    "noteDescription": "Submit your library to be included in the <link>public library repository</link> for other people to use in their drawings.",
+    "noteGuidelines": "The library needs to be manually approved first. Please read the <link>guidelines</link> before submitting. You will need a GitHub account to communicate and make changes if requested, but it is not strictly required.",
+    "noteLicense": "By submitting, you agree the library will be published under the <link>MIT License</link>, which in short means anyone can use them without restrictions.",
+    "noteItems": "Each library item must have its own name so it's filterable. The following library items will be included:",
+    "atleastOneLibItem": "Please select at least one library item to get started",
+    "republishWarning": "Note: some of the selected items are marked as already published/submitted. You should only resubmit items when updating an existing library or submission."
+  },
+  "publishSuccessDialog": {
+    "title": "Library submitted",
+    "content": "Thank you {{authorName}}. Your library has been submitted for review. You can track the status <link>here</link>"
+  },
+  "confirmDialog": {
+    "resetLibrary": "Reset library",
+    "removeItemsFromLib": "Remove selected items from library"
+  },
+  "imageExportDialog": {
+    "header": "Export image",
+    "label": {
+      "withBackground": "Background",
+      "onlySelected": "Only selected",
+      "darkMode": "Dark mode",
+      "embedScene": "Embed scene",
+      "scale": "Scale",
+      "padding": "Padding"
+    },
+    "tooltip": {
+      "embedScene": "Scene data will be saved into the exported PNG/SVG file so that the scene can be restored from it.\nWill increase exported file size."
+    },
+    "title": {
+      "exportToPng": "Export to PNG",
+      "exportToSvg": "Export to SVG",
+      "copyPngToClipboard": "Copy PNG to clipboard"
+    },
+    "button": {
+      "exportToPng": "PNG",
+      "exportToSvg": "SVG",
+      "copyPngToClipboard": "Copy to clipboard"
+    }
   },
   "encrypted": {
     "tooltip": "Your drawings are end-to-end encrypted so Excalidraw's servers will never see them.",
@@ -276,59 +431,91 @@
     "width": "Width"
   },
   "toast": {
+    "addedToLibrary": "Added to library",
     "copyStyles": "Copied styles.",
     "copyToClipboard": "Copied to clipboard.",
     "copyToClipboardAsPng": "Copied {{exportSelection}} to clipboard as PNG\n({{exportColorScheme}})",
     "fileSaved": "File saved.",
     "fileSavedToFilename": "Saved to {filename}",
     "canvas": "canvas",
-    "selection": "selection"
+    "selection": "selection",
+    "pasteAsSingleElement": "Use {{shortcut}} to paste as a single element,\nor paste into an existing text editor",
+    "unableToEmbed": "Embedding this url is currently not allowed. Raise an issue on GitHub to request the url whitelisted",
+    "unrecognizedLinkFormat": "The link you embedded does not match the expected format. Please try to paste the 'embed' string provided by the source site"
   },
   "colors": {
-    "ffffff": "White",
-    "f8f9fa": "Gray 0",
-    "f1f3f5": "Gray 1",
-    "fff5f5": "Red 0",
-    "fff0f6": "Pink 0",
-    "f8f0fc": "Grape 0",
-    "f3f0ff": "Violet 0",
-    "edf2ff": "Indigo 0",
-    "e7f5ff": "Blue 0",
-    "e3fafc": "Cyan 0",
-    "e6fcf5": "Teal 0",
-    "ebfbee": "Green 0",
-    "f4fce3": "Lime 0",
-    "fff9db": "Yellow 0",
-    "fff4e6": "Orange 0",
     "transparent": "Transparent",
-    "ced4da": "Gray 4",
-    "868e96": "Gray 6",
-    "fa5252": "Red 6",
-    "e64980": "Pink 6",
-    "be4bdb": "Grape 6",
-    "7950f2": "Violet 6",
-    "4c6ef5": "Indigo 6",
-    "228be6": "Blue 6",
-    "15aabf": "Cyan 6",
-    "12b886": "Teal 6",
-    "40c057": "Green 6",
-    "82c91e": "Lime 6",
-    "fab005": "Yellow 6",
-    "fd7e14": "Orange 6",
-    "000000": "Black",
-    "343a40": "Gray 8",
-    "495057": "Gray 7",
-    "c92a2a": "Red 9",
-    "a61e4d": "Pink 9",
-    "862e9c": "Grape 9",
-    "5f3dc4": "Violet 9",
-    "364fc7": "Indigo 9",
-    "1864ab": "Blue 9",
-    "0b7285": "Cyan 9",
-    "087f5b": "Teal 9",
-    "2b8a3e": "Green 9",
-    "5c940d": "Lime 9",
-    "e67700": "Yellow 9",
-    "d9480f": "Orange 9"
+    "black": "Black",
+    "white": "White",
+    "red": "Red",
+    "pink": "Pink",
+    "grape": "Grape",
+    "violet": "Violet",
+    "gray": "Gray",
+    "blue": "Blue",
+    "cyan": "Cyan",
+    "teal": "Teal",
+    "green": "Green",
+    "yellow": "Yellow",
+    "orange": "Orange",
+    "bronze": "Bronze"
+  },
+  "welcomeScreen": {
+    "app": {
+      "center_heading": "All your data is saved locally in your browser.",
+      "center_heading_plus": "Did you want to go to the Excalidraw+ instead?",
+      "menuHint": "Export, preferences, languages, ..."
+    },
+    "defaults": {
+      "menuHint": "Export, preferences, and more...",
+      "center_heading": "Diagrams. Made. Simple.",
+      "toolbarHint": "Pick a tool & Start drawing!",
+      "helpHint": "Shortcuts & help"
+    }
+  },
+  "colorPicker": {
+    "mostUsedCustomColors": "Most used custom colors",
+    "colors": "Colors",
+    "shades": "Shades",
+    "hexCode": "Hex code",
+    "noShades": "No shades available for this color"
+  },
+  "overwriteConfirm": {
+    "action": {
+      "exportToImage": {
+        "title": "Export as image",
+        "button": "Export as image",
+        "description": "Export the scene data as an image from which you can import later."
+      },
+      "saveToDisk": {
+        "title": "Save to disk",
+        "button": "Save to disk",
+        "description": "Export the scene data to a file from which you can import later."
+      },
+      "excalidrawPlus": {
+        "title": "Excalidraw+",
+        "button": "Export to Excalidraw+",
+        "description": "Save the scene to your Excalidraw+ workspace."
+      }
+    },
+    "modal": {
+      "loadFromFile": {
+        "title": "Load from file",
+        "button": "Load from file",
+        "description": "Loading from a file will <bold>replace your existing content</bold>.<br></br>You can back up your drawing first using one of the options below."
+      },
+      "shareableLink": {
+        "title": "Load from link",
+        "button": "Replace my content",
+        "description": "Loading external drawing will <bold>replace your existing content</bold>.<br></br>You can back up your drawing first by using one of the options below."
+      }
+    }
+  },
+  "mermaid": {
+    "title": "Mermaid to Excalidraw",
+    "button": "Insert",
+    "description": "Currently only <flowchartLink>Flowcharts</flowchartLink> and <sequenceLink>Sequence Diagrams</sequenceLink> are supported. The other types will be rendered as image in Excalidraw.",
+    "syntax": "Mermaid Syntax",
+    "preview": "Preview"
   }
 }

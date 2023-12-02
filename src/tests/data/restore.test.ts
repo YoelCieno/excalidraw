@@ -10,16 +10,21 @@ import { API } from "../helpers/api";
 import { getDefaultAppState } from "../../appState";
 import { ImportedDataState } from "../../data/types";
 import { NormalizedZoomValue } from "../../types";
-import { FONT_FAMILY } from "../../constants";
+import { DEFAULT_SIDEBAR, FONT_FAMILY, ROUNDNESS } from "../../constants";
 import { newElementWith } from "../../element/mutateElement";
-
-const mockSizeHelper = jest.spyOn(sizeHelpers, "isInvisiblySmallElement");
-
-beforeEach(() => {
-  mockSizeHelper.mockReset();
-});
+import { vi } from "vitest";
 
 describe("restoreElements", () => {
+  const mockSizeHelper = vi.spyOn(sizeHelpers, "isInvisiblySmallElement");
+
+  beforeEach(() => {
+    mockSizeHelper.mockReset();
+  });
+
+  afterAll(() => {
+    mockSizeHelper.mockRestore();
+  });
+
   it("should return empty array when element is null", () => {
     expect(restore.restoreElements(null, null)).toStrictEqual([]);
   });
@@ -81,12 +86,15 @@ describe("restoreElements", () => {
     textElement.text = null;
     textElement.font = "10 unknown";
 
+    expect(textElement.isDeleted).toBe(false);
     const restoredText = restore.restoreElements(
       [textElement],
       null,
     )[0] as ExcalidrawTextElement;
+    expect(restoredText.isDeleted).toBe(true);
     expect(restoredText).toMatchSnapshot({
       seed: expect.any(Number),
+      versionNonce: expect.any(Number),
     });
   });
 
@@ -135,9 +143,8 @@ describe("restoreElements", () => {
     expect(restoredArrow).toMatchSnapshot({ seed: expect.any(Number) });
   });
 
-  it("when arrow element has defined endArrowHead", () => {
+  it('should set arrow element endArrowHead as "arrow" when arrow element endArrowHead is null', () => {
     const arrowElement = API.createElement({ type: "arrow" });
-
     const restoredElements = restore.restoreElements([arrowElement], null);
 
     const restoredArrow = restoredElements[0] as ExcalidrawLinearElement;
@@ -145,10 +152,10 @@ describe("restoreElements", () => {
     expect(arrowElement.endArrowhead).toBe(restoredArrow.endArrowhead);
   });
 
-  it("when arrow element has undefined endArrowHead", () => {
+  it('should set arrow element endArrowHead as "arrow" when arrow element endArrowHead is undefined', () => {
     const arrowElement = API.createElement({ type: "arrow" });
     Object.defineProperty(arrowElement, "endArrowhead", {
-      get: jest.fn(() => undefined),
+      get: vi.fn(() => undefined),
     });
 
     const restoredElements = restore.restoreElements([arrowElement], null);
@@ -201,7 +208,7 @@ describe("restoreElements", () => {
       [1, 1],
     ];
     Object.defineProperty(lineElement_0, "points", {
-      get: jest.fn(() => pointsEl_0),
+      get: vi.fn(() => pointsEl_0),
     });
 
     const pointsEl_1 = [
@@ -209,7 +216,7 @@ describe("restoreElements", () => {
       [5, 6],
     ];
     Object.defineProperty(lineElement_1, "points", {
-      get: jest.fn(() => pointsEl_1),
+      get: vi.fn(() => pointsEl_1),
     });
 
     const restoredElements = restore.restoreElements(
@@ -241,7 +248,7 @@ describe("restoreElements", () => {
     types.forEach((elType) => {
       idCount += 1;
       const element = API.createElement({
-        type: elType as "rectangle" | "ellipse" | "diamond",
+        type: elType as "rectangle" | "ellipse" | "diamond" | "embeddable",
         id: idCount.toString(),
         fillStyle: "cross-hatch",
         strokeWidth: 2,
@@ -255,7 +262,7 @@ describe("restoreElements", () => {
         width: 100,
         height: 200,
         groupIds: ["1", "2", "3"],
-        strokeSharpness: "round",
+        roundness: { type: ROUNDNESS.PROPORTIONAL_RADIUS },
       });
 
       elements.push(element);
@@ -297,12 +304,12 @@ describe("restoreElements", () => {
 describe("restoreAppState", () => {
   it("should restore with imported data", () => {
     const stubImportedAppState = getDefaultAppState();
-    stubImportedAppState.elementType = "selection";
+    stubImportedAppState.activeTool.type = "selection";
     stubImportedAppState.cursorButton = "down";
     stubImportedAppState.name = "imported app state";
 
     const stubLocalAppState = getDefaultAppState();
-    stubLocalAppState.elementType = "rectangle";
+    stubLocalAppState.activeTool.type = "rectangle";
     stubLocalAppState.cursorButton = "up";
     stubLocalAppState.name = "local app state";
 
@@ -310,10 +317,10 @@ describe("restoreAppState", () => {
       stubImportedAppState,
       stubLocalAppState,
     );
-    expect(restoredAppState.elementType).toBe(stubImportedAppState.elementType);
-    expect(restoredAppState.cursorButton).toBe(
-      stubImportedAppState.cursorButton,
+    expect(restoredAppState.activeTool).toEqual(
+      stubImportedAppState.activeTool,
     );
+    expect(restoredAppState.cursorButton).toBe("up");
     expect(restoredAppState.name).toBe(stubImportedAppState.name);
   });
 
@@ -345,9 +352,7 @@ describe("restoreAppState", () => {
       stubImportedAppState,
       null,
     );
-    expect(restoredAppState.cursorButton).toBe(
-      stubImportedAppState.cursorButton,
-    );
+    expect(restoredAppState.cursorButton).toBe("up");
     expect(restoredAppState.name).toBe(stubImportedAppState.name);
   });
 
@@ -391,14 +396,14 @@ describe("restoreAppState", () => {
   it("when imported data state has a not allowed Excalidraw Element Types", () => {
     const stubImportedAppState: any = getDefaultAppState();
 
-    stubImportedAppState.elementType = "not allowed Excalidraw Element Types";
+    stubImportedAppState.activeTool = "not allowed Excalidraw Element Types";
     const stubLocalAppState = getDefaultAppState();
 
     const restoredAppState = restore.restoreAppState(
       stubImportedAppState,
       stubLocalAppState,
     );
-    expect(restoredAppState.elementType).toBe("selection");
+    expect(restoredAppState.activeTool.type).toBe("selection");
   });
 
   describe("with zoom in imported data state", () => {
@@ -415,16 +420,12 @@ describe("restoreAppState", () => {
       );
 
       expect(restoredAppState.zoom.value).toBe(10);
-      expect(restoredAppState.zoom.translation).toMatchObject(
-        getDefaultAppState().zoom.translation,
-      );
     });
 
     it("when the zoom of imported data state is not a number", () => {
       const stubImportedAppState = getDefaultAppState();
       stubImportedAppState.zoom = {
         value: 10 as NormalizedZoomValue,
-        translation: { x: 5, y: 3 },
       };
 
       const stubLocalAppState = getDefaultAppState();
@@ -442,7 +443,7 @@ describe("restoreAppState", () => {
       const stubImportedAppState = getDefaultAppState();
 
       Object.defineProperty(stubImportedAppState, "zoom", {
-        get: jest.fn(() => null),
+        get: vi.fn(() => null),
       });
 
       const stubLocalAppState = getDefaultAppState();
@@ -454,6 +455,29 @@ describe("restoreAppState", () => {
 
       expect(restoredAppState.zoom).toMatchObject(getDefaultAppState().zoom);
     });
+  });
+
+  it("should handle appState.openSidebar legacy values", () => {
+    expect(restore.restoreAppState({}, null).openSidebar).toBe(null);
+    expect(
+      restore.restoreAppState({ openSidebar: "library" } as any, null)
+        .openSidebar,
+    ).toEqual({ name: DEFAULT_SIDEBAR.name });
+    expect(
+      restore.restoreAppState({ openSidebar: "xxx" } as any, null).openSidebar,
+    ).toEqual({ name: DEFAULT_SIDEBAR.name });
+    // while "library" was our legacy sidebar name, we can't assume it's legacy
+    // value as it may be some host app's custom sidebar name ¯\_(ツ)_/¯
+    expect(
+      restore.restoreAppState({ openSidebar: { name: "library" } } as any, null)
+        .openSidebar,
+    ).toEqual({ name: "library" });
+    expect(
+      restore.restoreAppState(
+        { openSidebar: { name: DEFAULT_SIDEBAR.name, tab: "ola" } } as any,
+        null,
+      ).openSidebar,
+    ).toEqual({ name: DEFAULT_SIDEBAR.name, tab: "ola" });
   });
 });
 
@@ -504,9 +528,7 @@ describe("restore", () => {
     importedDataState.appState = stubImportedAppState;
 
     const restoredData = restore.restore(importedDataState, null, null);
-    expect(restoredData.appState.cursorButton).toBe(
-      stubImportedAppState.cursorButton,
-    );
+    expect(restoredData.appState.cursorButton).toBe("up");
     expect(restoredData.appState.name).toBe(stubImportedAppState.name);
   });
 
@@ -532,6 +554,239 @@ describe("restore", () => {
         id: ellipse.id,
         version: ellipse.version,
         versionNonce: ellipse.versionNonce,
+      }),
+    ]);
+  });
+});
+
+describe("repairing bindings", () => {
+  it("should repair container boundElements when repair is true", () => {
+    const container = API.createElement({
+      type: "rectangle",
+      boundElements: [],
+    });
+    const boundElement = API.createElement({
+      type: "text",
+      containerId: container.id,
+    });
+
+    expect(container.boundElements).toEqual([]);
+
+    let restoredElements = restore.restoreElements(
+      [container, boundElement],
+      null,
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: container.id,
+      }),
+    ]);
+
+    restoredElements = restore.restoreElements(
+      [container, boundElement],
+      null,
+      { repairBindings: true },
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [{ type: boundElement.type, id: boundElement.id }],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: container.id,
+      }),
+    ]);
+  });
+
+  it("should repair containerId of boundElements when repair is true", () => {
+    const boundElement = API.createElement({
+      type: "text",
+      containerId: null,
+    });
+    const container = API.createElement({
+      type: "rectangle",
+      boundElements: [{ type: boundElement.type, id: boundElement.id }],
+    });
+
+    let restoredElements = restore.restoreElements(
+      [container, boundElement],
+      null,
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [{ type: boundElement.type, id: boundElement.id }],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: null,
+      }),
+    ]);
+
+    restoredElements = restore.restoreElements(
+      [container, boundElement],
+      null,
+      { repairBindings: true },
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [{ type: boundElement.type, id: boundElement.id }],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: container.id,
+      }),
+    ]);
+  });
+
+  it("should ignore bound element if deleted", () => {
+    const container = API.createElement({
+      type: "rectangle",
+      boundElements: [],
+    });
+    const boundElement = API.createElement({
+      type: "text",
+      containerId: container.id,
+      isDeleted: true,
+    });
+
+    expect(container.boundElements).toEqual([]);
+
+    const restoredElements = restore.restoreElements(
+      [container, boundElement],
+      null,
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: container.id,
+      }),
+    ]);
+  });
+
+  it("should remove bindings of deleted elements from boundElements when repair is true", () => {
+    const container = API.createElement({
+      type: "rectangle",
+      boundElements: [],
+    });
+    const boundElement = API.createElement({
+      type: "text",
+      containerId: container.id,
+      isDeleted: true,
+    });
+    const invisibleBoundElement = API.createElement({
+      type: "text",
+      containerId: container.id,
+      width: 0,
+      height: 0,
+    });
+
+    const obsoleteBinding = { type: boundElement.type, id: boundElement.id };
+    const invisibleBinding = {
+      type: invisibleBoundElement.type,
+      id: invisibleBoundElement.id,
+    };
+    expect(container.boundElements).toEqual([]);
+
+    const nonExistentBinding = { type: "text", id: "non-existent" };
+    // @ts-ignore
+    container.boundElements = [
+      obsoleteBinding,
+      invisibleBinding,
+      nonExistentBinding,
+    ];
+
+    let restoredElements = restore.restoreElements(
+      [container, invisibleBoundElement, boundElement],
+      null,
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [obsoleteBinding, invisibleBinding, nonExistentBinding],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: container.id,
+      }),
+    ]);
+
+    restoredElements = restore.restoreElements(
+      [container, invisibleBoundElement, boundElement],
+      null,
+      { repairBindings: true },
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: container.id,
+        boundElements: [],
+      }),
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: container.id,
+      }),
+    ]);
+  });
+
+  it("should remove containerId if container not exists when repair is true", () => {
+    const boundElement = API.createElement({
+      type: "text",
+      containerId: "non-existent",
+    });
+    const boundElementDeleted = API.createElement({
+      type: "text",
+      containerId: "non-existent",
+      isDeleted: true,
+    });
+
+    let restoredElements = restore.restoreElements(
+      [boundElement, boundElementDeleted],
+      null,
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: "non-existent",
+      }),
+      expect.objectContaining({
+        id: boundElementDeleted.id,
+        containerId: "non-existent",
+      }),
+    ]);
+
+    restoredElements = restore.restoreElements(
+      [boundElement, boundElementDeleted],
+      null,
+      { repairBindings: true },
+    );
+
+    expect(restoredElements).toEqual([
+      expect.objectContaining({
+        id: boundElement.id,
+        containerId: null,
+      }),
+      expect.objectContaining({
+        id: boundElementDeleted.id,
+        containerId: null,
       }),
     ]);
   });

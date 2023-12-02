@@ -1,59 +1,68 @@
-import React from "react";
 import {
   DistributeHorizontallyIcon,
   DistributeVerticallyIcon,
 } from "../components/icons";
 import { ToolButton } from "../components/ToolButton";
-import { distributeElements, Distribution } from "../disitrubte";
-import { getElementMap, getNonDeletedElements } from "../element";
+import { distributeElements, Distribution } from "../distribute";
+import { getNonDeletedElements } from "../element";
+import { isFrameLikeElement } from "../element/typeChecks";
 import { ExcalidrawElement } from "../element/types";
+import { updateFrameMembershipOfSelectedElements } from "../frame";
 import { t } from "../i18n";
-import { CODES } from "../keys";
-import { getSelectedElements, isSomeElementSelected } from "../scene";
-import { AppState } from "../types";
-import { getShortcutKey } from "../utils";
+import { CODES, KEYS } from "../keys";
+import { isSomeElementSelected } from "../scene";
+import { AppClassProperties, AppState } from "../types";
+import { arrayToMap, getShortcutKey } from "../utils";
 import { register } from "./register";
 
-const enableActionGroup = (
-  elements: readonly ExcalidrawElement[],
-  appState: AppState,
-) => getSelectedElements(getNonDeletedElements(elements), appState).length > 1;
+const enableActionGroup = (appState: AppState, app: AppClassProperties) => {
+  const selectedElements = app.scene.getSelectedElements(appState);
+  return (
+    selectedElements.length > 1 &&
+    // TODO enable distributing frames when implemented properly
+    !selectedElements.some((el) => isFrameLikeElement(el))
+  );
+};
 
 const distributeSelectedElements = (
   elements: readonly ExcalidrawElement[],
   appState: Readonly<AppState>,
+  app: AppClassProperties,
   distribution: Distribution,
 ) => {
-  const selectedElements = getSelectedElements(
-    getNonDeletedElements(elements),
-    appState,
-  );
+  const selectedElements = app.scene.getSelectedElements(appState);
 
   const updatedElements = distributeElements(selectedElements, distribution);
 
-  const updatedElementsMap = getElementMap(updatedElements);
+  const updatedElementsMap = arrayToMap(updatedElements);
 
-  return elements.map((element) => updatedElementsMap[element.id] || element);
+  return updateFrameMembershipOfSelectedElements(
+    elements.map((element) => updatedElementsMap.get(element.id) || element),
+    appState,
+    app,
+  );
 };
 
 export const distributeHorizontally = register({
   name: "distributeHorizontally",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: distributeSelectedElements(elements, appState, {
+      elements: distributeSelectedElements(elements, appState, app, {
         space: "between",
         axis: "x",
       }),
       commitToHistory: true,
     };
   },
-  keyTest: (event) => event.altKey && event.code === CODES.H,
-  PanelComponent: ({ elements, appState, updateData }) => (
+  keyTest: (event) =>
+    !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.H,
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!enableActionGroup(appState, app)}
       type="button"
-      icon={<DistributeHorizontallyIcon theme={appState.theme} />}
+      icon={DistributeHorizontallyIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.distributeHorizontally")} — ${getShortcutKey(
         "Alt+H",
@@ -66,22 +75,24 @@ export const distributeHorizontally = register({
 
 export const distributeVertically = register({
   name: "distributeVertically",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: distributeSelectedElements(elements, appState, {
+      elements: distributeSelectedElements(elements, appState, app, {
         space: "between",
         axis: "y",
       }),
       commitToHistory: true,
     };
   },
-  keyTest: (event) => event.altKey && event.code === CODES.V,
-  PanelComponent: ({ elements, appState, updateData }) => (
+  keyTest: (event) =>
+    !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.V,
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!enableActionGroup(appState, app)}
       type="button"
-      icon={<DistributeVerticallyIcon theme={appState.theme} />}
+      icon={DistributeVerticallyIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.distributeVertically")} — ${getShortcutKey("Alt+V")}`}
       aria-label={t("labels.distributeVertically")}

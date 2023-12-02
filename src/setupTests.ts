@@ -1,9 +1,19 @@
+// vitest.setup.ts
+import "vitest-canvas-mock";
 import "@testing-library/jest-dom";
-import "jest-canvas-mock";
+import { vi } from "vitest";
+import polyfill from "./polyfill";
+import { testPolyfills } from "./tests/helpers/polyfills";
 
-jest.mock("nanoid", () => {
+Object.assign(globalThis, testPolyfills);
+
+require("fake-indexeddb/auto");
+
+polyfill();
+
+vi.mock("nanoid", () => {
   return {
-    nanoid: jest.fn(() => "test-id"),
+    nanoid: vi.fn(() => "test-id"),
   };
 });
 // ReactDOM is located inside index.tsx file

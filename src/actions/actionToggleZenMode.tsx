@@ -1,12 +1,14 @@
 import { CODES, KEYS } from "../keys";
 import { register } from "./register";
-import { trackEvent } from "../analytics";
 
 export const actionToggleZenMode = register({
   name: "zenMode",
+  viewMode: true,
+  trackEvent: {
+    category: "canvas",
+    predicate: (appState) => !appState.zenModeEnabled,
+  },
   perform(elements, appState) {
-    trackEvent("view", "mode", "zen");
-
     return {
       appState: {
         ...appState,
@@ -16,6 +18,9 @@ export const actionToggleZenMode = register({
     };
   },
   checked: (appState) => appState.zenModeEnabled,
+  predicate: (elements, appState, appProps) => {
+    return typeof appProps.zenModeEnabled === "undefined";
+  },
   contextItemLabel: "buttons.zenMode",
   keyTest: (event) =>
     !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.Z,

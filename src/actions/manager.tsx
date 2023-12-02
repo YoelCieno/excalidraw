@@ -1,40 +1,58 @@
 import React from "react";
 import {
   Action,
-  ActionsManagerInterface,
   UpdaterFn,
   ActionName,
   ActionResult,
   PanelComponentProps,
+  ActionSource,
 } from "./types";
 import { ExcalidrawElement } from "../element/types";
-import { AppProps, AppState } from "../types";
-import { MODES } from "../constants";
-import Library from "../data/library";
+import { AppClassProperties, AppState } from "../types";
+import { trackEvent } from "../analytics";
 
-// This is the <App> component, but for now we don't care about anything but its
-// `canvas` state.
-type App = {
-  canvas: HTMLCanvasElement | null;
-  focusContainer: () => void;
-  props: AppProps;
-  library: Library;
+const trackAction = (
+  action: Action,
+  source: ActionSource,
+  appState: Readonly<AppState>,
+  elements: readonly ExcalidrawElement[],
+  app: AppClassProperties,
+  value: any,
+) => {
+  if (action.trackEvent) {
+    try {
+      if (typeof action.trackEvent === "object") {
+        const shouldTrack = action.trackEvent.predicate
+          ? action.trackEvent.predicate(appState, elements, value)
+          : true;
+        if (shouldTrack) {
+          trackEvent(
+            action.trackEvent.category,
+            action.trackEvent.action || action.name,
+            `${source} (${app.device.editor.isMobile ? "mobile" : "desktop"})`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error("error while logging action:", error);
+    }
+  }
 };
 
-export class ActionManager implements ActionsManagerInterface {
-  actions = {} as ActionsManagerInterface["actions"];
+export class ActionManager {
+  actions = {} as Record<ActionName, Action>;
 
   updater: (actionResult: ActionResult | Promise<ActionResult>) => void;
 
   getAppState: () => Readonly<AppState>;
   getElementsIncludingDeleted: () => readonly ExcalidrawElement[];
-  app: App;
+  app: AppClassProperties;
 
   constructor(
     updater: UpdaterFn,
     getAppState: () => AppState,
     getElementsIncludingDeleted: () => readonly ExcalidrawElement[],
-    app: App,
+    app: AppClassProperties,
   ) {
     this.updater = (actionResult) => {
       if (actionResult && "then" in actionResult) {
@@ -72,40 +90,46 @@ export class ActionManager implements ActionsManagerInterface {
             event,
             this.getAppState(),
             this.getElementsIncludingDeleted(),
+            this.app,
           ),
       );
 
-    if (data.length === 0) {
+    if (data.length !== 1) {
+      if (data.length > 1) {
+        console.warn("Canceling as multiple actions match this shortcut", data);
+      }
       return false;
     }
-    const { viewModeEnabled } = this.getAppState();
-    if (viewModeEnabled) {
-      if (!Object.values(MODES).includes(data[0].name)) {
-        return false;
-      }
+
+    const action = data[0];
+
+    if (this.getAppState().viewModeEnabled && action.viewMode !== true) {
+      return false;
     }
 
+    const elements = this.getElementsIncludingDeleted();
+    const appState = this.getAppState();
+    const value = null;
+
+    trackAction(action, "keyboard", appState, elements, this.app, null);
+
     event.preventDefault();
-    this.updater(
-      data[0].perform(
-        this.getElementsIncludingDeleted(),
-        this.getAppState(),
-        null,
-        this.app,
-      ),
-    );
+    event.stopPropagation();
+    this.updater(data[0].perform(elements, appState, value, this.app));
     return true;
   }
 
-  executeAction(action: Action) {
-    this.updater(
-      action.perform(
-        this.getElementsIncludingDeleted(),
-        this.getAppState(),
-        null,
-        this.app,
-      ),
-    );
+  executeAction<T extends Action>(
+    action: T,
+    source: ActionSource = "api",
+    value: Parameters<T["perform"]>[2] = null,
+  ) {
+    const elements = this.getElementsIncludingDeleted();
+    const appState = this.getAppState();
+
+    trackAction(action, source, appState, elements, this.app, value);
+
+    this.updater(action.perform(elements, appState, value, this.app));
   }
 
   /**
@@ -123,7 +147,12 @@ export class ActionManager implements ActionsManagerInterface {
     ) {
       const action = this.actions[name];
       const PanelComponent = action.PanelComponent!;
+      PanelComponent.displayName = "PanelComponent";
+      const elements = this.getElementsIncludingDeleted();
+      const appState = this.getAppState();
       const updateData = (formState?: any) => {
+        trackAction(action, "ui", appState, elements, this.app, formState);
+
         this.updater(
           action.perform(
             this.getElementsIncludingDeleted(),
@@ -140,11 +169,22 @@ export class ActionManager implements ActionsManagerInterface {
           appState={this.getAppState()}
           updateData={updateData}
           appProps={this.app.props}
+          app={this.app}
           data={data}
         />
       );
     }
 
     return null;
+  };
+
+  isActionEnabled = (action: Action) => {
+    const elements = this.getElementsIncludingDeleted();
+    const appState = this.getAppState();
+
+    return (
+      !action.predicate ||
+      action.predicate(elements, appState, this.app.props, this.app)
+    );
   };
 }

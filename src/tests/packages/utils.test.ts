@@ -1,18 +1,17 @@
 import * as utils from "../../packages/utils";
 import { diagramFactory } from "../fixtures/diagramFixture";
+import { vi } from "vitest";
 import * as mockedSceneExportUtils from "../../scene/export";
 
-jest.mock("../../scene/export", () => ({
-  __esmodule: true,
-  ...jest.requireActual("../../scene/export"),
-  exportToSvg: jest.fn(),
-}));
+import { MIME_TYPES } from "../../constants";
 
-describe("exportToCanvas", () => {
+const exportToSvgSpy = vi.spyOn(mockedSceneExportUtils, "exportToSvg");
+
+describe("exportToCanvas", async () => {
   const EXPORT_PADDING = 10;
 
-  it("with default arguments", () => {
-    const canvas = utils.exportToCanvas({
+  it("with default arguments", async () => {
+    const canvas = await utils.exportToCanvas({
       ...diagramFactory({ elementOverrides: { width: 100, height: 100 } }),
     });
 
@@ -20,8 +19,8 @@ describe("exportToCanvas", () => {
     expect(canvas.height).toBe(100 + 2 * EXPORT_PADDING);
   });
 
-  it("when custom width and height", () => {
-    const canvas = utils.exportToCanvas({
+  it("when custom width and height", async () => {
+    const canvas = await utils.exportToCanvas({
       ...diagramFactory({ elementOverrides: { width: 100, height: 100 } }),
       getDimensions: () => ({ width: 200, height: 200, scale: 1 }),
     });
@@ -31,49 +30,51 @@ describe("exportToCanvas", () => {
   });
 });
 
-describe("exportToBlob", () => {
+describe("exportToBlob", async () => {
   describe("mime type", () => {
-    afterEach(jest.restoreAllMocks);
-
+    // afterEach(vi.restoreAllMocks);
     it("should change image/jpg to image/jpeg", async () => {
       const blob = await utils.exportToBlob({
         ...diagramFactory(),
         getDimensions: (width, height) => ({ width, height, scale: 1 }),
+        // testing typo in MIME type (jpg → jpeg)
         mimeType: "image/jpg",
+        appState: {
+          exportBackground: true,
+        },
       });
-      expect(blob?.type).toBe("image/jpeg");
+      expect(blob?.type).toBe(MIME_TYPES.jpg);
     });
-
     it("should default to image/png", async () => {
       const blob = await utils.exportToBlob({
         ...diagramFactory(),
       });
-      expect(blob?.type).toBe("image/png");
+      expect(blob?.type).toBe(MIME_TYPES.png);
     });
 
     it("should warn when using quality with image/png", async () => {
-      const consoleSpy = jest
+      const consoleSpy = vi
         .spyOn(console, "warn")
         .mockImplementationOnce(() => void 0);
-
       await utils.exportToBlob({
         ...diagramFactory(),
-        mimeType: "image/png",
+        mimeType: MIME_TYPES.png,
         quality: 1,
       });
-
       expect(consoleSpy).toHaveBeenCalledWith(
-        '"quality" will be ignored for "image/png" mimeType',
+        `"quality" will be ignored for "${MIME_TYPES.png}" mimeType`,
       );
     });
   });
 });
 
 describe("exportToSvg", () => {
-  const mockedExportUtil = mockedSceneExportUtils.exportToSvg as jest.Mock;
-  const passedElements = () => mockedExportUtil.mock.calls[0][0];
-  const passedOptions = () => mockedExportUtil.mock.calls[0][1];
-  afterEach(jest.resetAllMocks);
+  const passedElements = () => exportToSvgSpy.mock.calls[0][0];
+  const passedOptions = () => exportToSvgSpy.mock.calls[0][1];
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("with default arguments", async () => {
     await utils.exportToSvg({
@@ -91,7 +92,10 @@ describe("exportToSvg", () => {
     expect(passedOptionsWhenDefault).toMatchSnapshot();
   });
 
-  it("with deleted elements", async () => {
+  // FIXME the utils.exportToSvg no longer filters out deleted elements.
+  // It's already supposed to be passed non-deleted elements by we're not
+  // type-checking for it correctly.
+  it.skip("with deleted elements", async () => {
     await utils.exportToSvg({
       ...diagramFactory({
         overrides: { appState: void 0 },

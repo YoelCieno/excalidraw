@@ -1,9 +1,11 @@
 import { ExcalidrawElement } from "./types";
-import { invalidateShapeForElement } from "../renderer/renderElement";
 import Scene from "../scene/Scene";
 import { getSizeFromPoints } from "../points";
 import { randomInteger } from "../random";
 import { Point } from "../types";
+import { getUpdatedTimestamp } from "../utils";
+import { Mutable } from "../utility-types";
+import { ShapeCache } from "../scene/ShapeCache";
 
 type ElementUpdate<TElement extends ExcalidrawElement> = Omit<
   Partial<TElement>,
@@ -17,12 +19,13 @@ type ElementUpdate<TElement extends ExcalidrawElement> = Omit<
 export const mutateElement = <TElement extends Mutable<ExcalidrawElement>>(
   element: TElement,
   updates: ElementUpdate<TElement>,
-) => {
+  informMutation = true,
+): TElement => {
   let didChange = false;
 
   // casting to any because can't use `in` operator
   // (see https://github.com/microsoft/TypeScript/issues/21732)
-  const { points } = updates as any;
+  const { points, fileId } = updates as any;
 
   if (typeof points !== "undefined") {
     updates = { ...getSizeFromPoints(points), ...updates };
@@ -33,13 +36,23 @@ export const mutateElement = <TElement extends Mutable<ExcalidrawElement>>(
     if (typeof value !== "undefined") {
       if (
         (element as any)[key] === value &&
-        // if object, always update in case its deep prop was mutated
-        (typeof value !== "object" || value === null || key === "groupIds")
+        // if object, always update because its attrs could have changed
+        // (except for specific keys we handle below)
+        (typeof value !== "object" ||
+          value === null ||
+          key === "groupIds" ||
+          key === "scale")
       ) {
         continue;
       }
 
-      if (key === "points") {
+      if (key === "scale") {
+        const prevScale = (element as any)[key];
+        const nextScale = value;
+        if (prevScale[0] === nextScale[0] && prevScale[1] === nextScale[1]) {
+          continue;
+        }
+      } else if (key === "points") {
         const prevPoints = (element as any)[key];
         const nextPoints = value;
         if (prevPoints.length === nextPoints.length) {
@@ -66,22 +79,28 @@ export const mutateElement = <TElement extends Mutable<ExcalidrawElement>>(
       didChange = true;
     }
   }
-
   if (!didChange) {
-    return;
+    return element;
   }
 
   if (
     typeof updates.height !== "undefined" ||
     typeof updates.width !== "undefined" ||
+    typeof fileId != "undefined" ||
     typeof points !== "undefined"
   ) {
-    invalidateShapeForElement(element);
+    ShapeCache.delete(element);
   }
 
   element.version++;
   element.versionNonce = randomInteger();
-  Scene.getScene(element)?.informMutation();
+  element.updated = getUpdatedTimestamp();
+
+  if (informMutation) {
+    Scene.getScene(element)?.informMutation();
+  }
+
+  return element;
 };
 
 export const newElementWith = <TElement extends ExcalidrawElement>(
@@ -94,8 +113,8 @@ export const newElementWith = <TElement extends ExcalidrawElement>(
     if (typeof value !== "undefined") {
       if (
         (element as any)[key] === value &&
-        // if object, always update in case its deep prop was mutated
-        (typeof value !== "object" || value === null || key === "groupIds")
+        // if object, always update because its attrs could have changed
+        (typeof value !== "object" || value === null)
       ) {
         continue;
       }
@@ -110,21 +129,23 @@ export const newElementWith = <TElement extends ExcalidrawElement>(
   return {
     ...element,
     ...updates,
+    updated: getUpdatedTimestamp(),
     version: element.version + 1,
     versionNonce: randomInteger(),
   };
 };
 
 /**
- * Mutates element and updates `version` & `versionNonce`.
+ * Mutates element, bumping `version`, `versionNonce`, and `updated`.
  *
  * NOTE: does not trigger re-render.
  */
-export const bumpVersion = (
-  element: Mutable<ExcalidrawElement>,
+export const bumpVersion = <T extends Mutable<ExcalidrawElement>>(
+  element: T,
   version?: ExcalidrawElement["version"],
 ) => {
   element.version = (version ?? element.version) + 1;
   element.versionNonce = randomInteger();
+  element.updated = getUpdatedTimestamp();
   return element;
 };

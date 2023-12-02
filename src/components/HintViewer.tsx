@@ -1,37 +1,59 @@
-import React from "react";
 import { t } from "../i18n";
-import { NonDeletedExcalidrawElement } from "../element/types";
-import { getSelectedElements } from "../scene";
+import { AppClassProperties, Device, UIAppState } from "../types";
+import {
+  isImageElement,
+  isLinearElement,
+  isTextBindableContainer,
+  isTextElement,
+} from "../element/typeChecks";
+import { getShortcutKey } from "../utils";
+import { isEraserActive } from "../appState";
 
 import "./HintViewer.scss";
-import { AppState } from "../types";
-import { isLinearElement, isTextElement } from "../element/typeChecks";
-import { getShortcutKey } from "../utils";
 
-interface Hint {
-  appState: AppState;
-  elements: readonly NonDeletedExcalidrawElement[];
+interface HintViewerProps {
+  appState: UIAppState;
+  isMobile: boolean;
+  device: Device;
+  app: AppClassProperties;
 }
 
-const getHints = ({ appState, elements }: Hint) => {
-  const { elementType, isResizing, isRotating, lastPointerDownWith } = appState;
+const getHints = ({ appState, isMobile, device, app }: HintViewerProps) => {
+  const { activeTool, isResizing, isRotating, lastPointerDownWith } = appState;
   const multiMode = appState.multiElement !== null;
-  if (elementType === "arrow" || elementType === "line") {
+
+  if (appState.openSidebar && !device.editor.canFitSidebar) {
+    return null;
+  }
+
+  if (isEraserActive(appState)) {
+    return t("hints.eraserRevert");
+  }
+  if (activeTool.type === "arrow" || activeTool.type === "line") {
     if (!multiMode) {
       return t("hints.linearElement");
     }
     return t("hints.linearElementMulti");
   }
 
-  if (elementType === "freedraw") {
+  if (activeTool.type === "freedraw") {
     return t("hints.freeDraw");
   }
 
-  if (elementType === "text") {
+  if (activeTool.type === "text") {
     return t("hints.text");
   }
 
-  const selectedElements = getSelectedElements(elements, appState);
+  if (activeTool.type === "embeddable") {
+    return t("hints.embeddable");
+  }
+
+  if (appState.activeTool.type === "image" && appState.pendingImageElementId) {
+    return t("hints.placeImage");
+  }
+
+  const selectedElements = app.scene.getSelectedElements(appState);
+
   if (
     isResizing &&
     lastPointerDownWith === "mouse" &&
@@ -41,20 +63,13 @@ const getHints = ({ appState, elements }: Hint) => {
     if (isLinearElement(targetElement) && targetElement.points.length === 2) {
       return t("hints.lockAngle");
     }
-    return t("hints.resize");
+    return isImageElement(targetElement)
+      ? t("hints.resizeImage")
+      : t("hints.resize");
   }
 
   if (isRotating && lastPointerDownWith === "mouse") {
     return t("hints.rotate");
-  }
-
-  if (selectedElements.length === 1 && isLinearElement(selectedElements[0])) {
-    if (appState.editingLinearElement) {
-      return appState.editingLinearElement.activePointIndex
-        ? t("hints.lineEditor_pointSelected")
-        : t("hints.lineEditor_nothingSelected");
-    }
-    return t("hints.lineEditor_info");
   }
 
   if (selectedElements.length === 1 && isTextElement(selectedElements[0])) {
@@ -65,13 +80,56 @@ const getHints = ({ appState, elements }: Hint) => {
     return t("hints.text_editing");
   }
 
+  if (activeTool.type === "selection") {
+    if (
+      appState.draggingElement?.type === "selection" &&
+      !selectedElements.length &&
+      !appState.editingElement &&
+      !appState.editingLinearElement
+    ) {
+      return t("hints.deepBoxSelect");
+    }
+
+    if (appState.gridSize && appState.draggingElement) {
+      return t("hints.disableSnapping");
+    }
+
+    if (!selectedElements.length && !isMobile) {
+      return t("hints.canvasPanning");
+    }
+
+    if (selectedElements.length === 1) {
+      if (isLinearElement(selectedElements[0])) {
+        if (appState.editingLinearElement) {
+          return appState.editingLinearElement.selectedPointsIndices
+            ? t("hints.lineEditor_pointSelected")
+            : t("hints.lineEditor_nothingSelected");
+        }
+        return t("hints.lineEditor_info");
+      }
+      if (
+        !appState.draggingElement &&
+        isTextBindableContainer(selectedElements[0])
+      ) {
+        return t("hints.bindTextToElement");
+      }
+    }
+  }
+
   return null;
 };
 
-export const HintViewer = ({ appState, elements }: Hint) => {
+export const HintViewer = ({
+  appState,
+  isMobile,
+  device,
+  app,
+}: HintViewerProps) => {
   let hint = getHints({
     appState,
-    elements,
+    isMobile,
+    device,
+    app,
   });
   if (!hint) {
     return null;

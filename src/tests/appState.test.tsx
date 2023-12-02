@@ -1,9 +1,11 @@
-import React from "react";
-import { render, waitFor } from "./test-utils";
-import ExcalidrawApp from "../excalidraw-app";
+import { queryByTestId, render, waitFor } from "./test-utils";
+
+import { Excalidraw } from "../packages/excalidraw/index";
 import { API } from "./helpers/api";
 import { getDefaultAppState } from "../appState";
-import { EXPORT_DATA_TYPES } from "../constants";
+import { EXPORT_DATA_TYPES, MIME_TYPES } from "../constants";
+import { Pointer, UI } from "./helpers/ui";
+import { ExcalidrawTextElement } from "../element/types";
 
 const { h } = window;
 
@@ -12,14 +14,17 @@ describe("appState", () => {
     const defaultAppState = getDefaultAppState();
     const exportBackground = !defaultAppState.exportBackground;
 
-    await render(<ExcalidrawApp />, {
-      localStorageData: {
-        appState: {
-          exportBackground,
-          viewBackgroundColor: "#F00",
-        },
-      },
-    });
+    await render(
+      <Excalidraw
+        initialData={{
+          appState: {
+            exportBackground,
+            viewBackgroundColor: "#F00",
+          },
+        }}
+      />,
+      {},
+    );
 
     await waitFor(() => {
       expect(h.state.exportBackground).toBe(exportBackground);
@@ -37,7 +42,7 @@ describe("appState", () => {
             elements: [API.createElement({ type: "rectangle", id: "A" })],
           }),
         ],
-        { type: "application/json" },
+        { type: MIME_TYPES.json },
       ),
     );
 
@@ -48,5 +53,29 @@ describe("appState", () => {
       // imported prop → overwrite
       expect(h.state.viewBackgroundColor).toBe("#000");
     });
+  });
+
+  it("changing fontSize with text tool selected (no element created yet)", async () => {
+    const { container } = await render(
+      <Excalidraw
+        initialData={{
+          appState: {
+            currentItemFontSize: 30,
+          },
+        }}
+      />,
+    );
+
+    UI.clickTool("text");
+
+    expect(h.state.currentItemFontSize).toBe(30);
+    queryByTestId(container, "fontSize-small")!.click();
+    expect(h.state.currentItemFontSize).toBe(16);
+
+    const mouse = new Pointer("mouse");
+
+    mouse.clickAt(100, 100);
+
+    expect((h.elements[0] as ExcalidrawTextElement).fontSize).toBe(16);
   });
 });

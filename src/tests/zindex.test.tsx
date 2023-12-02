@@ -1,7 +1,6 @@
-import React from "react";
 import ReactDOM from "react-dom";
 import { render } from "./test-utils";
-import ExcalidrawApp from "../excalidraw-app";
+import { Excalidraw } from "../packages/excalidraw/index";
 import { reseed } from "../random";
 import {
   actionSendBackward,
@@ -12,6 +11,12 @@ import {
 } from "../actions";
 import { AppState } from "../types";
 import { API } from "./helpers/api";
+import { selectGroupsForSelectedElements } from "../groups";
+import {
+  ExcalidrawElement,
+  ExcalidrawFrameElement,
+  ExcalidrawSelectionElement,
+} from "../element/types";
 
 // Unmount ReactDOM from root
 ReactDOM.unmountComponentAtNode(document.getElementById("root")!);
@@ -23,9 +28,15 @@ beforeEach(() => {
 
 const { h } = window;
 
+type ExcalidrawElementType = Exclude<
+  ExcalidrawElement,
+  ExcalidrawSelectionElement
+>["type"];
+
 const populateElements = (
   elements: {
     id: string;
+    type?: ExcalidrawElementType;
     isDeleted?: boolean;
     isSelected?: boolean;
     groupIds?: string[];
@@ -33,11 +44,14 @@ const populateElements = (
     x?: number;
     width?: number;
     height?: number;
+    containerId?: string;
+    frameId?: ExcalidrawFrameElement["id"];
   }[],
+  appState?: Partial<AppState>,
 ) => {
   const selectedElementIds: any = {};
 
-  h.elements = elements.map(
+  const newElements = elements.map(
     ({
       id,
       isDeleted = false,
@@ -47,9 +61,12 @@ const populateElements = (
       x = 100,
       width = 100,
       height = 100,
+      containerId = null,
+      frameId = null,
+      type,
     }) => {
       const element = API.createElement({
-        type: "rectangle",
+        type: type ?? (containerId ? "text" : "rectangle"),
         id,
         isDeleted,
         x,
@@ -57,6 +74,8 @@ const populateElements = (
         width,
         height,
         groupIds,
+        containerId,
+        frameId: frameId || null,
       });
       if (isSelected) {
         selectedElementIds[element.id] = true;
@@ -65,9 +84,32 @@ const populateElements = (
     },
   );
 
-  h.setState({
-    selectedElementIds,
+  // initialize `boundElements` on containers, if applicable
+  h.elements = newElements.map((element, index, elements) => {
+    const nextElement = elements[index + 1];
+    if (
+      nextElement &&
+      "containerId" in nextElement &&
+      element.id === nextElement.containerId
+    ) {
+      return {
+        ...element,
+        boundElements: [{ type: "text", id: nextElement.id }],
+      };
+    }
+    return element;
   });
+
+  h.setState({
+    ...selectGroupsForSelectedElements(
+      { ...h.state, ...appState, selectedElementIds },
+      h.elements,
+      h.state,
+      null,
+    ),
+    ...appState,
+    selectedElementIds,
+  } as AppState);
 
   return selectedElementIds;
 };
@@ -88,16 +130,14 @@ const assertZindex = ({
     isDeleted?: true;
     isSelected?: true;
     groupIds?: string[];
+    containerId?: string;
+    frameId?: ExcalidrawFrameElement["id"];
+    type?: ExcalidrawElementType;
   }[];
   appState?: Partial<AppState>;
   operations: [Actions, string[]][];
 }) => {
-  const selectedElementIds = populateElements(elements);
-
-  h.setState({
-    editingGroupId: appState?.editingGroupId || null,
-  });
-
+  const selectedElementIds = populateElements(elements, appState);
   operations.forEach(([action, expected]) => {
     h.app.actionManager.executeAction(action);
     expect(h.elements.map((element) => element.id)).toEqual(expected);
@@ -107,7 +147,7 @@ const assertZindex = ({
 
 describe("z-index manipulation", () => {
   beforeEach(async () => {
-    await render(<ExcalidrawApp />);
+    await render(<Excalidraw />);
   });
 
   it("send back", () => {
@@ -865,9 +905,6 @@ describe("z-index manipulation", () => {
       { id: "A", groupIds: ["g1"], isSelected: true },
       { id: "B", groupIds: ["g1"], isSelected: true },
     ]);
-    h.setState({
-      selectedGroupIds: { g1: true },
-    });
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements).toMatchObject([
       { id: "A" },
@@ -889,9 +926,6 @@ describe("z-index manipulation", () => {
       { id: "B", groupIds: ["g1"], isSelected: true },
       { id: "C" },
     ]);
-    h.setState({
-      selectedGroupIds: { g1: true },
-    });
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements).toMatchObject([
       { id: "A" },
@@ -914,9 +948,6 @@ describe("z-index manipulation", () => {
       { id: "B", groupIds: ["g1"], isSelected: true },
       { id: "C", isSelected: true },
     ]);
-    h.setState({
-      selectedGroupIds: { g1: true },
-    });
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -933,9 +964,6 @@ describe("z-index manipulation", () => {
       { id: "C", groupIds: ["g2"], isSelected: true },
       { id: "D", groupIds: ["g2"], isSelected: true },
     ]);
-    h.setState({
-      selectedGroupIds: { g1: true, g2: true },
-    });
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -948,14 +976,16 @@ describe("z-index manipulation", () => {
       "D_copy",
     ]);
 
-    populateElements([
-      { id: "A", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "B", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "C", groupIds: ["g2"], isSelected: true },
-    ]);
-    h.setState({
-      selectedGroupIds: { g1: true },
-    });
+    populateElements(
+      [
+        { id: "A", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "B", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "C", groupIds: ["g2"], isSelected: true },
+      ],
+      {
+        selectedGroupIds: { g1: true },
+      },
+    );
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -966,14 +996,16 @@ describe("z-index manipulation", () => {
       "C_copy",
     ]);
 
-    populateElements([
-      { id: "A", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "B", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "C", groupIds: ["g2"], isSelected: true },
-    ]);
-    h.setState({
-      selectedGroupIds: { g2: true },
-    });
+    populateElements(
+      [
+        { id: "A", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "B", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "C", groupIds: ["g2"], isSelected: true },
+      ],
+      {
+        selectedGroupIds: { g2: true },
+      },
+    );
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -984,17 +1016,19 @@ describe("z-index manipulation", () => {
       "C_copy",
     ]);
 
-    populateElements([
-      { id: "A", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "B", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "C", groupIds: ["g2"], isSelected: true },
-      { id: "D", groupIds: ["g3", "g4"], isSelected: true },
-      { id: "E", groupIds: ["g3", "g4"], isSelected: true },
-      { id: "F", groupIds: ["g4"], isSelected: true },
-    ]);
-    h.setState({
-      selectedGroupIds: { g2: true, g4: true },
-    });
+    populateElements(
+      [
+        { id: "A", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "B", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "C", groupIds: ["g2"], isSelected: true },
+        { id: "D", groupIds: ["g3", "g4"], isSelected: true },
+        { id: "E", groupIds: ["g3", "g4"], isSelected: true },
+        { id: "F", groupIds: ["g4"], isSelected: true },
+      ],
+      {
+        selectedGroupIds: { g2: true, g4: true },
+      },
+    );
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -1011,11 +1045,14 @@ describe("z-index manipulation", () => {
       "F_copy",
     ]);
 
-    populateElements([
-      { id: "A", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "B", groupIds: ["g1", "g2"] },
-      { id: "C", groupIds: ["g2"] },
-    ]);
+    populateElements(
+      [
+        { id: "A", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "B", groupIds: ["g1", "g2"] },
+        { id: "C", groupIds: ["g2"] },
+      ],
+      { editingGroupId: "g1" },
+    );
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -1024,11 +1061,14 @@ describe("z-index manipulation", () => {
       "C",
     ]);
 
-    populateElements([
-      { id: "A", groupIds: ["g1", "g2"] },
-      { id: "B", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "C", groupIds: ["g2"] },
-    ]);
+    populateElements(
+      [
+        { id: "A", groupIds: ["g1", "g2"] },
+        { id: "B", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "C", groupIds: ["g2"] },
+      ],
+      { editingGroupId: "g1" },
+    );
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -1037,11 +1077,14 @@ describe("z-index manipulation", () => {
       "C",
     ]);
 
-    populateElements([
-      { id: "A", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "B", groupIds: ["g1", "g2"], isSelected: true },
-      { id: "C", groupIds: ["g2"], isSelected: true },
-    ]);
+    populateElements(
+      [
+        { id: "A", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "B", groupIds: ["g1", "g2"], isSelected: true },
+        { id: "C", groupIds: ["g2"] },
+      ],
+      { editingGroupId: "g1" },
+    );
     h.app.actionManager.executeAction(actionDuplicateSelection);
     expect(h.elements.map((element) => element.id)).toEqual([
       "A",
@@ -1049,7 +1092,393 @@ describe("z-index manipulation", () => {
       "B",
       "B_copy",
       "C",
+    ]);
+  });
+
+  it("duplicating incorrectly interleaved elements (group elements should be together) should still produce reasonable result", () => {
+    populateElements([
+      { id: "A", groupIds: ["g1"], isSelected: true },
+      { id: "B" },
+      { id: "C", groupIds: ["g1"], isSelected: true },
+    ]);
+    h.app.actionManager.executeAction(actionDuplicateSelection);
+    expect(h.elements.map((element) => element.id)).toEqual([
+      "A",
+      "C",
+      "A_copy",
       "C_copy",
+      "B",
     ]);
+  });
+
+  it("group-selected duplication should includes deleted elements that weren't selected on account of being deleted", () => {
+    populateElements([
+      { id: "A", groupIds: ["g1"], isDeleted: true },
+      { id: "B", groupIds: ["g1"], isSelected: true },
+      { id: "C", groupIds: ["g1"], isSelected: true },
+      { id: "D" },
+    ]);
+    expect(h.state.selectedGroupIds).toEqual({ g1: true });
+    h.app.actionManager.executeAction(actionDuplicateSelection);
+    expect(h.elements.map((element) => element.id)).toEqual([
+      "A",
+      "B",
+      "C",
+      "A_copy",
+      "B_copy",
+      "C_copy",
+      "D",
+    ]);
+  });
+
+  it("text-container binding should be atomic", () => {
+    assertZindex({
+      elements: [
+        { id: "A", isSelected: true },
+        { id: "B" },
+        { id: "C", containerId: "B" },
+      ],
+      operations: [
+        [actionBringForward, ["B", "C", "A"]],
+        [actionSendBackward, ["A", "B", "C"]],
+      ],
+    });
+
+    assertZindex({
+      elements: [
+        { id: "A" },
+        { id: "B", isSelected: true },
+        { id: "C", containerId: "B" },
+      ],
+      operations: [
+        [actionSendBackward, ["B", "C", "A"]],
+        [actionBringForward, ["A", "B", "C"]],
+      ],
+    });
+
+    assertZindex({
+      elements: [
+        { id: "A", isSelected: true, groupIds: ["g1"] },
+        { id: "B", groupIds: ["g1"] },
+        { id: "C", containerId: "B", groupIds: ["g1"] },
+      ],
+      appState: {
+        editingGroupId: "g1",
+      },
+      operations: [
+        [actionBringForward, ["B", "C", "A"]],
+        [actionSendBackward, ["A", "B", "C"]],
+      ],
+    });
+
+    assertZindex({
+      elements: [
+        { id: "A", groupIds: ["g1"] },
+        { id: "B", groupIds: ["g1"], isSelected: true },
+        { id: "C", containerId: "B", groupIds: ["g1"] },
+      ],
+      appState: {
+        editingGroupId: "g1",
+      },
+      operations: [
+        [actionSendBackward, ["B", "C", "A"]],
+        [actionBringForward, ["A", "B", "C"]],
+      ],
+    });
+
+    assertZindex({
+      elements: [
+        { id: "A", groupIds: ["g1"] },
+        { id: "B", isSelected: true, groupIds: ["g1"] },
+        { id: "C" },
+        { id: "D", containerId: "C" },
+      ],
+      appState: {
+        editingGroupId: "g1",
+      },
+      operations: [[actionBringForward, ["A", "B", "C", "D"]]],
+    });
+  });
+});
+
+describe("z-indexing with frames", () => {
+  beforeEach(async () => {
+    await render(<Excalidraw />);
+  });
+
+  // naming scheme:
+  // F#   ... frame element
+  // F#_# ... frame child of F# (rectangle)
+  // R#   ... unrelated element (rectangle)
+
+  it("moving whole frame by one (normalized)", () => {
+    // normalized frame order
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +1
+        [actionBringForward, ["R1", "F1_1", "F1_2", "F1", "R2"]],
+        // +1
+        [actionBringForward, ["R1", "R2", "F1_1", "F1_2", "F1"]],
+        // noop
+        [actionBringForward, ["R1", "R2", "F1_1", "F1_2", "F1"]],
+        // -1
+        [actionSendBackward, ["R1", "F1_1", "F1_2", "F1", "R2"]],
+        // -1
+        [actionSendBackward, ["F1_1", "F1_2", "F1", "R1", "R2"]],
+        // noop
+        [actionSendBackward, ["F1_1", "F1_2", "F1", "R1", "R2"]],
+      ],
+    });
+  });
+
+  it("moving whole frame by one (DENORMALIZED)", () => {
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +1
+        [actionBringForward, ["R1", "F1_1", "F1", "F1_2", "R2"]],
+        // +1
+        [actionBringForward, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+        // noop
+        [actionBringForward, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R1" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +1
+        [actionBringForward, ["R1", "F1_1", "F1", "R2", "F1_2"]],
+        // +1
+        [actionBringForward, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+        // noop
+        [actionBringForward, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "R1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R2" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R3" },
+      ],
+      operations: [
+        // +1
+        [actionBringForward, ["R1", "F1_1", "R2", "F1", "R3", "F1_2"]],
+        // +1
+        // FIXME incorrect, should put F1_1 after R3
+        [actionBringForward, ["R1", "R2", "F1_1", "R3", "F1", "F1_2"]],
+        // +1
+        // FIXME should be noop from previous step after it's fixed
+        [actionBringForward, ["R1", "R2", "R3", "F1_1", "F1", "F1_2"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "R1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R2" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R3" },
+      ],
+      operations: [
+        // -1
+        [actionSendBackward, ["F1_1", "F1", "R1", "F1_2", "R2", "R3"]],
+        // -1
+        [actionSendBackward, ["F1_1", "F1", "F1_2", "R1", "R2", "R3"]],
+      ],
+    });
+  });
+
+  it("moving selected frame children by one (normalized)", () => {
+    // normalized frame order
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1", isSelected: true },
+        { id: "F1_2", frameId: "F1" },
+        { id: "F1", type: "frame" },
+        { id: "R1" },
+      ],
+      operations: [
+        // +1
+        [actionBringForward, ["F1_2", "F1_1", "F1", "R1"]],
+        // noop
+        [actionBringForward, ["F1_2", "F1_1", "F1", "R1"]],
+      ],
+    });
+
+    // normalized frame order, multiple frames
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1", isSelected: true },
+        { id: "F1_2", frameId: "F1" },
+        { id: "F1", type: "frame" },
+        { id: "R1" },
+        { id: "F2_1", frameId: "F2", isSelected: true },
+        { id: "F2_2", frameId: "F2" },
+        { id: "F2", type: "frame" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +1
+        [
+          actionBringForward,
+          ["F1_2", "F1_1", "F1", "R1", "F2_2", "F2_1", "F2", "R2"],
+        ],
+        // noop
+        [
+          actionBringForward,
+          ["F1_2", "F1_1", "F1", "R1", "F2_2", "F2_1", "F2", "R2"],
+        ],
+      ],
+    });
+  });
+
+  it("moving selected frame children by one (DENORMALIZED)", () => {
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1", isSelected: true },
+        { id: "F1", type: "frame" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R1" },
+      ],
+      operations: [
+        // +1
+        // NOTE not sure what we wanna do here
+        [actionBringForward, ["F1", "F1_2", "F1_1", "R1"]],
+        // noop
+        [actionBringForward, ["F1", "F1_2", "F1_1", "R1"]],
+        // -1
+        [actionSendBackward, ["F1", "F1_1", "F1_2", "R1"]],
+        // noop
+        [actionSendBackward, ["F1", "F1_1", "F1_2", "R1"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1", isSelected: true },
+        { id: "R1" },
+        { id: "F1", type: "frame" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +1
+        // NOTE not sure what we wanna do here
+        [actionBringForward, ["R1", "F1", "F1_2", "F1_1", "R2"]],
+        // noop
+        [actionBringForward, ["R1", "F1", "F1_2", "F1_1", "R2"]],
+        // -1
+        [actionSendBackward, ["R1", "F1", "F1_1", "F1_2", "R2"]],
+        // noop
+        [actionSendBackward, ["R1", "F1", "F1_1", "F1_2", "R2"]],
+      ],
+    });
+  });
+
+  it("moving whole frame to front/end", () => {
+    // normalized frame order
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +∞
+        [actionBringToFront, ["R1", "R2", "F1_1", "F1_2", "F1"]],
+        // noop
+        [actionBringToFront, ["R1", "R2", "F1_1", "F1_2", "F1"]],
+        // -∞
+        [actionSendToBack, ["F1_1", "F1_2", "F1", "R1", "R2"]],
+        // noop
+        [actionSendToBack, ["F1_1", "F1_2", "F1", "R1", "R2"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +∞
+        [actionBringToFront, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+        // noop
+        [actionBringToFront, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+        // -∞
+        [actionSendToBack, ["F1_1", "F1", "F1_2", "R1", "R2"]],
+        // noop
+        [actionSendToBack, ["F1_1", "F1", "F1_2", "R1", "R2"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R1" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R2" },
+      ],
+      operations: [
+        // +∞
+        [actionBringToFront, ["R1", "R2", "F1_1", "F1", "F1_2"]],
+      ],
+    });
+
+    // DENORMALIZED FRAME ORDER
+    assertZindex({
+      elements: [
+        { id: "F1_1", frameId: "F1" },
+        { id: "R1" },
+        { id: "F1", type: "frame", isSelected: true },
+        { id: "R2" },
+        { id: "F1_2", frameId: "F1" },
+        { id: "R3" },
+      ],
+      operations: [
+        // +1
+        [actionBringToFront, ["R1", "R2", "R3", "F1_1", "F1", "F1_2"]],
+      ],
+    });
   });
 });

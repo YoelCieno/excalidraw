@@ -1,15 +1,15 @@
 import { Action, ActionResult } from "./types";
-import React from "react";
-import { undo, redo } from "../components/icons";
+import { UndoIcon, RedoIcon } from "../components/icons";
 import { ToolButton } from "../components/ToolButton";
 import { t } from "../i18n";
 import History, { HistoryEntry } from "../history";
 import { ExcalidrawElement } from "../element/types";
 import { AppState } from "../types";
-import { isWindows, KEYS } from "../keys";
-import { getElementMap } from "../element";
+import { KEYS } from "../keys";
 import { newElementWith } from "../element/mutateElement";
 import { fixBindingsAfterDeletion } from "../element/binding";
+import { arrayToMap } from "../utils";
+import { isWindows } from "../constants";
 
 const writeData = (
   prevElements: readonly ExcalidrawElement[],
@@ -28,17 +28,17 @@ const writeData = (
       return { commitToHistory };
     }
 
-    const prevElementMap = getElementMap(prevElements);
+    const prevElementMap = arrayToMap(prevElements);
     const nextElements = data.elements;
-    const nextElementMap = getElementMap(nextElements);
+    const nextElementMap = arrayToMap(nextElements);
 
     const deletedElements = prevElements.filter(
-      (prevElement) => !nextElementMap.hasOwnProperty(prevElement.id),
+      (prevElement) => !nextElementMap.has(prevElement.id),
     );
     const elements = nextElements
       .map((nextElement) =>
         newElementWith(
-          prevElementMap[nextElement.id] || nextElement,
+          prevElementMap.get(nextElement.id) || nextElement,
           nextElement,
         ),
       )
@@ -63,6 +63,7 @@ type ActionCreator = (history: History) => Action;
 
 export const createUndoAction: ActionCreator = (history) => ({
   name: "undo",
+  trackEvent: { category: "history" },
   perform: (elements, appState) =>
     writeData(elements, appState, () => history.undoOnce()),
   keyTest: (event) =>
@@ -72,7 +73,7 @@ export const createUndoAction: ActionCreator = (history) => ({
   PanelComponent: ({ updateData, data }) => (
     <ToolButton
       type="button"
-      icon={undo}
+      icon={UndoIcon}
       aria-label={t("buttons.undo")}
       onClick={updateData}
       size={data?.size || "medium"}
@@ -83,6 +84,7 @@ export const createUndoAction: ActionCreator = (history) => ({
 
 export const createRedoAction: ActionCreator = (history) => ({
   name: "redo",
+  trackEvent: { category: "history" },
   perform: (elements, appState) =>
     writeData(elements, appState, () => history.redoOnce()),
   keyTest: (event) =>
@@ -93,7 +95,7 @@ export const createRedoAction: ActionCreator = (history) => ({
   PanelComponent: ({ updateData, data }) => (
     <ToolButton
       type="button"
-      icon={redo}
+      icon={RedoIcon}
       aria-label={t("buttons.redo")}
       onClick={updateData}
       size={data?.size || "medium"}

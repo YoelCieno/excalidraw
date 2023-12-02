@@ -1,40 +1,31 @@
 import clsx from "clsx";
-import React, {
-  RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React from "react";
 import { ActionManager } from "../actions/manager";
-import { CLASSES } from "../constants";
-import { exportCanvas } from "../data";
-import { importLibraryFromJSON, saveLibraryAsJSON } from "../data/json";
-import { isTextElement, showSelectedShapeActions } from "../element";
+import {
+  CLASSES,
+  DEFAULT_SIDEBAR,
+  LIBRARY_SIDEBAR_WIDTH,
+  TOOL_TYPE,
+} from "../constants";
+import { showSelectedShapeActions } from "../element";
 import { NonDeletedExcalidrawElement } from "../element/types";
 import { Language, t } from "../i18n";
-import { useIsMobile } from "../components/App";
-import { calculateScrollCenter, getSelectedElements } from "../scene";
-import { ExportType } from "../scene/types";
+import { calculateScrollCenter } from "../scene";
 import {
   AppProps,
   AppState,
   ExcalidrawProps,
-  LibraryItem,
-  LibraryItems,
+  BinaryFiles,
+  UIAppState,
+  AppClassProperties,
 } from "../types";
-import { muteFSAbortError } from "../utils";
-import { SelectedShapeActions, ShapesSwitcher, ZoomActions } from "./Actions";
-import { BackgroundPickerAndDarkModeToggle } from "./BackgroundPickerAndDarkModeToggle";
-import CollabButton from "./CollabButton";
+import { capitalizeString, isShallowEqual } from "../utils";
+import { SelectedShapeActions, ShapesSwitcher } from "./Actions";
 import { ErrorDialog } from "./ErrorDialog";
-import { ExportCB, ImageExportDialog } from "./ImageExportDialog";
+import { ImageExportDialog } from "./ImageExportDialog";
 import { FixedSideContainer } from "./FixedSideContainer";
 import { HintViewer } from "./HintViewer";
-import { exportFile, load, trash } from "./icons";
 import { Island } from "./Island";
-import "./LayerUI.scss";
-import { LibraryUnit } from "./LibraryUnit";
 import { LoadingMessage } from "./LoadingMessage";
 import { LockButton } from "./LockButton";
 import { MobileMenu } from "./MobileMenu";
@@ -42,347 +33,133 @@ import { PasteChartDialog } from "./PasteChartDialog";
 import { Section } from "./Section";
 import { HelpDialog } from "./HelpDialog";
 import Stack from "./Stack";
-import { ToolButton } from "./ToolButton";
-import { Tooltip } from "./Tooltip";
 import { UserList } from "./UserList";
-import Library from "../data/library";
 import { JSONExportDialog } from "./JSONExportDialog";
-import { LibraryButton } from "./LibraryButton";
-import { isImageFileHandle } from "../data/blob";
+import { PenModeButton } from "./PenModeButton";
+import { trackEvent } from "../analytics";
+import { useDevice } from "../components/App";
+import { Stats } from "./Stats";
+import { actionToggleStats } from "../actions/actionToggleStats";
+import Footer from "./footer/Footer";
+import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
+import { jotaiScope } from "../jotai";
+import { Provider, useAtom, useAtomValue } from "jotai";
+import MainMenu from "./main-menu/MainMenu";
+import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
+import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
+import { HandButton } from "./HandButton";
+import { isHandToolActive } from "../appState";
+import { TunnelsContext, useInitializeTunnels } from "../context/tunnels";
+import { LibraryIcon } from "./icons";
+import { UIAppStateContext } from "../context/ui-appState";
+import { DefaultSidebar } from "./DefaultSidebar";
+import { EyeDropper, activeEyeDropperAtom } from "./EyeDropper";
+
+import "./LayerUI.scss";
+import "./Toolbar.scss";
+import { mutateElement } from "../element/mutateElement";
+import { ShapeCache } from "../scene/ShapeCache";
+import Scene from "../scene/Scene";
+import { LaserPointerButton } from "./LaserTool/LaserPointerButton";
+import { MagicSettings } from "./MagicSettings";
+import { TTDDialog } from "./TTDDialog/TTDDialog";
 
 interface LayerUIProps {
   actionManager: ActionManager;
-  appState: AppState;
-  canvas: HTMLCanvasElement | null;
+  appState: UIAppState;
+  files: BinaryFiles;
+  canvas: HTMLCanvasElement;
   setAppState: React.Component<any, AppState>["setState"];
   elements: readonly NonDeletedExcalidrawElement[];
-  onCollabButtonClick?: () => void;
   onLockToggle: () => void;
-  onInsertElements: (elements: readonly NonDeletedExcalidrawElement[]) => void;
-  zenModeEnabled: boolean;
+  onHandToolToggle: () => void;
+  onPenModeToggle: AppClassProperties["togglePenMode"];
   showExitZenModeBtn: boolean;
-  showThemeBtn: boolean;
-  toggleZenMode: () => void;
   langCode: Language["code"];
-  isCollaborating: boolean;
-  renderTopRightUI?: (isMobile: boolean, appState: AppState) => JSX.Element;
-  renderCustomFooter?: (isMobile: boolean, appState: AppState) => JSX.Element;
-  viewModeEnabled: boolean;
-  libraryReturnUrl: ExcalidrawProps["libraryReturnUrl"];
+  renderTopRightUI?: ExcalidrawProps["renderTopRightUI"];
+  renderCustomStats?: ExcalidrawProps["renderCustomStats"];
   UIOptions: AppProps["UIOptions"];
-  focusContainer: () => void;
-  library: Library;
-  id: string;
+  onExportImage: AppClassProperties["onExportImage"];
+  renderWelcomeScreen: boolean;
+  children?: React.ReactNode;
+  app: AppClassProperties;
+  isCollaborating: boolean;
+  openAIKey: string | null;
+  isOpenAIKeyPersisted: boolean;
+  onOpenAIAPIKeyChange: (apiKey: string, shouldPersist: boolean) => void;
+  onMagicSettingsConfirm: (
+    apiKey: string,
+    shouldPersist: boolean,
+    source: "tool" | "generation" | "settings",
+  ) => void;
 }
 
-const useOnClickOutside = (
-  ref: RefObject<HTMLElement>,
-  cb: (event: MouseEvent) => void,
-) => {
-  useEffect(() => {
-    const listener = (event: MouseEvent) => {
-      if (!ref.current) {
-        return;
-      }
-
-      if (
-        event.target instanceof Element &&
-        (ref.current.contains(event.target) ||
-          !document.body.contains(event.target))
-      ) {
-        return;
-      }
-
-      cb(event);
-    };
-    document.addEventListener("pointerdown", listener, false);
-
-    return () => {
-      document.removeEventListener("pointerdown", listener);
-    };
-  }, [ref, cb]);
-};
-
-const LibraryMenuItems = ({
-  libraryItems,
-  onRemoveFromLibrary,
-  onAddToLibrary,
-  onInsertShape,
-  pendingElements,
-  theme,
-  setAppState,
-  setLibraryItems,
-  libraryReturnUrl,
-  focusContainer,
-  library,
-  id,
-}: {
-  libraryItems: LibraryItems;
-  pendingElements: LibraryItem;
-  onRemoveFromLibrary: (index: number) => void;
-  onInsertShape: (elements: LibraryItem) => void;
-  onAddToLibrary: (elements: LibraryItem) => void;
-  theme: AppState["theme"];
-  setAppState: React.Component<any, AppState>["setState"];
-  setLibraryItems: (library: LibraryItems) => void;
-  libraryReturnUrl: ExcalidrawProps["libraryReturnUrl"];
-  focusContainer: () => void;
-  library: Library;
-  id: string;
-}) => {
-  const isMobile = useIsMobile();
-  const numCells = libraryItems.length + (pendingElements.length > 0 ? 1 : 0);
-  const CELLS_PER_ROW = isMobile ? 4 : 6;
-  const numRows = Math.max(1, Math.ceil(numCells / CELLS_PER_ROW));
-  const rows = [];
-  let addedPendingElements = false;
-
-  const referrer =
-    libraryReturnUrl || window.location.origin + window.location.pathname;
-
-  rows.push(
-    <div className="layer-ui__library-header" key="library-header">
-      <ToolButton
-        key="import"
-        type="button"
-        title={t("buttons.load")}
-        aria-label={t("buttons.load")}
-        icon={load}
-        onClick={() => {
-          importLibraryFromJSON(library)
-            .then(() => {
-              // Close and then open to get the libraries updated
-              setAppState({ isLibraryOpen: false });
-              setAppState({ isLibraryOpen: true });
-            })
-            .catch(muteFSAbortError)
-            .catch((error) => {
-              setAppState({ errorMessage: error.message });
-            });
-        }}
-      />
-      {!!libraryItems.length && (
-        <>
-          <ToolButton
-            key="export"
-            type="button"
-            title={t("buttons.export")}
-            aria-label={t("buttons.export")}
-            icon={exportFile}
-            onClick={() => {
-              saveLibraryAsJSON(library)
-                .catch(muteFSAbortError)
-                .catch((error) => {
-                  setAppState({ errorMessage: error.message });
-                });
-            }}
-          />
-          <ToolButton
-            key="reset"
-            type="button"
-            title={t("buttons.resetLibrary")}
-            aria-label={t("buttons.resetLibrary")}
-            icon={trash}
-            onClick={() => {
-              if (window.confirm(t("alerts.resetLibrary"))) {
-                library.resetLibrary();
-                setLibraryItems([]);
-                focusContainer();
-              }
-            }}
-          />
-        </>
-      )}
-      <a
-        href={`https://libraries.excalidraw.com?target=${
-          window.name || "_blank"
-        }&referrer=${referrer}&useHash=true&token=${id}&theme=${theme}`}
-        target="_excalidraw_libraries"
-      >
-        {t("labels.libraries")}
-      </a>
-    </div>,
-  );
-
-  for (let row = 0; row < numRows; row++) {
-    const y = CELLS_PER_ROW * row;
-    const children = [];
-    for (let x = 0; x < CELLS_PER_ROW; x++) {
-      const shouldAddPendingElements: boolean =
-        pendingElements.length > 0 &&
-        !addedPendingElements &&
-        y + x >= libraryItems.length;
-      addedPendingElements = addedPendingElements || shouldAddPendingElements;
-
-      children.push(
-        <Stack.Col key={x}>
-          <LibraryUnit
-            elements={libraryItems[y + x]}
-            pendingElements={
-              shouldAddPendingElements ? pendingElements : undefined
-            }
-            onRemoveFromLibrary={onRemoveFromLibrary.bind(null, y + x)}
-            onClick={
-              shouldAddPendingElements
-                ? onAddToLibrary.bind(null, pendingElements)
-                : onInsertShape.bind(null, libraryItems[y + x])
-            }
-          />
-        </Stack.Col>,
-      );
-    }
-    rows.push(
-      <Stack.Row align="center" gap={1} key={row}>
-        {children}
-      </Stack.Row>,
-    );
-  }
-
+const DefaultMainMenu: React.FC<{
+  UIOptions: AppProps["UIOptions"];
+}> = ({ UIOptions }) => {
   return (
-    <Stack.Col align="start" gap={1} className="layer-ui__library-items">
-      {rows}
-    </Stack.Col>
+    <MainMenu __fallback>
+      <MainMenu.DefaultItems.LoadScene />
+      <MainMenu.DefaultItems.SaveToActiveFile />
+      {/* FIXME we should to test for this inside the item itself */}
+      {UIOptions.canvasActions.export && <MainMenu.DefaultItems.Export />}
+      {/* FIXME we should to test for this inside the item itself */}
+      {UIOptions.canvasActions.saveAsImage && (
+        <MainMenu.DefaultItems.SaveAsImage />
+      )}
+      <MainMenu.DefaultItems.Help />
+      <MainMenu.DefaultItems.ClearCanvas />
+      <MainMenu.Separator />
+      <MainMenu.Group title="Excalidraw links">
+        <MainMenu.DefaultItems.Socials />
+      </MainMenu.Group>
+      <MainMenu.Separator />
+      <MainMenu.DefaultItems.ToggleTheme />
+      <MainMenu.DefaultItems.ChangeCanvasBackground />
+    </MainMenu>
   );
 };
 
-const LibraryMenu = ({
-  onClickOutside,
-  onInsertShape,
-  pendingElements,
-  onAddToLibrary,
-  theme,
-  setAppState,
-  libraryReturnUrl,
-  focusContainer,
-  library,
-  id,
-}: {
-  pendingElements: LibraryItem;
-  onClickOutside: (event: MouseEvent) => void;
-  onInsertShape: (elements: LibraryItem) => void;
-  onAddToLibrary: () => void;
-  theme: AppState["theme"];
-  setAppState: React.Component<any, AppState>["setState"];
-  libraryReturnUrl: ExcalidrawProps["libraryReturnUrl"];
-  focusContainer: () => void;
-  library: Library;
-  id: string;
-}) => {
-  const ref = useRef<HTMLDivElement | null>(null);
-  useOnClickOutside(ref, (event) => {
-    // If click on the library icon, do nothing.
-    if ((event.target as Element).closest(".ToolIcon_type_button__library")) {
-      return;
-    }
-    onClickOutside(event);
-  });
-
-  const [libraryItems, setLibraryItems] = useState<LibraryItems>([]);
-
-  const [loadingState, setIsLoading] = useState<
-    "preloading" | "loading" | "ready"
-  >("preloading");
-
-  const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    Promise.race([
-      new Promise((resolve) => {
-        loadingTimerRef.current = setTimeout(() => {
-          resolve("loading");
-        }, 100);
-      }),
-      library.loadLibrary().then((items) => {
-        setLibraryItems(items);
-        setIsLoading("ready");
-      }),
-    ]).then((data) => {
-      if (data === "loading") {
-        setIsLoading("loading");
-      }
-    });
-    return () => {
-      clearTimeout(loadingTimerRef.current!);
-    };
-  }, [library]);
-
-  const removeFromLibrary = useCallback(
-    async (indexToRemove) => {
-      const items = await library.loadLibrary();
-      const nextItems = items.filter((_, index) => index !== indexToRemove);
-      library.saveLibrary(nextItems).catch((error) => {
-        setLibraryItems(items);
-        setAppState({ errorMessage: t("alerts.errorRemovingFromLibrary") });
-      });
-      setLibraryItems(nextItems);
-    },
-    [library, setAppState],
-  );
-
-  const addToLibrary = useCallback(
-    async (elements: LibraryItem) => {
-      const items = await library.loadLibrary();
-      const nextItems = [...items, elements];
-      onAddToLibrary();
-      library.saveLibrary(nextItems).catch((error) => {
-        setLibraryItems(items);
-        setAppState({ errorMessage: t("alerts.errorAddingToLibrary") });
-      });
-      setLibraryItems(nextItems);
-    },
-    [onAddToLibrary, library, setAppState],
-  );
-
-  return loadingState === "preloading" ? null : (
-    <Island padding={1} ref={ref} className="layer-ui__library">
-      {loadingState === "loading" ? (
-        <div className="layer-ui__library-message">
-          {t("labels.libraryLoadingMessage")}
-        </div>
-      ) : (
-        <LibraryMenuItems
-          libraryItems={libraryItems}
-          onRemoveFromLibrary={removeFromLibrary}
-          onAddToLibrary={addToLibrary}
-          onInsertShape={onInsertShape}
-          pendingElements={pendingElements}
-          setAppState={setAppState}
-          setLibraryItems={setLibraryItems}
-          libraryReturnUrl={libraryReturnUrl}
-          focusContainer={focusContainer}
-          library={library}
-          theme={theme}
-          id={id}
-        />
-      )}
-    </Island>
+const DefaultOverwriteConfirmDialog = () => {
+  return (
+    <OverwriteConfirmDialog __fallback>
+      <OverwriteConfirmDialog.Actions.SaveToDisk />
+      <OverwriteConfirmDialog.Actions.ExportToImage />
+    </OverwriteConfirmDialog>
   );
 };
 
 const LayerUI = ({
   actionManager,
   appState,
+  files,
   setAppState,
-  canvas,
   elements,
-  onCollabButtonClick,
+  canvas,
   onLockToggle,
-  onInsertElements,
-  zenModeEnabled,
+  onHandToolToggle,
+  onPenModeToggle,
   showExitZenModeBtn,
-  showThemeBtn,
-  toggleZenMode,
-  isCollaborating,
   renderTopRightUI,
-  renderCustomFooter,
-  viewModeEnabled,
-  libraryReturnUrl,
+  renderCustomStats,
   UIOptions,
-  focusContainer,
-  library,
-  id,
+  onExportImage,
+  renderWelcomeScreen,
+  children,
+  app,
+  isCollaborating,
+  openAIKey,
+  isOpenAIKeyPersisted,
+  onOpenAIAPIKeyChange,
+  onMagicSettingsConfirm,
 }: LayerUIProps) => {
-  const isMobile = useIsMobile();
+  const device = useDevice();
+  const tunnels = useInitializeTunnels();
+
+  const [eyeDropperState, setEyeDropperState] = useAtom(
+    activeEyeDropperAtom,
+    jotaiScope,
+  );
 
   const renderJSONExportDialog = () => {
     if (!UIOptions.canvasActions.export) {
@@ -393,173 +170,68 @@ const LayerUI = ({
       <JSONExportDialog
         elements={elements}
         appState={appState}
+        files={files}
         actionManager={actionManager}
         exportOpts={UIOptions.canvasActions.export}
         canvas={canvas}
+        setAppState={setAppState}
       />
     );
   };
 
   const renderImageExportDialog = () => {
-    if (!UIOptions.canvasActions.saveAsImage) {
+    if (
+      !UIOptions.canvasActions.saveAsImage ||
+      appState.openDialog?.name !== "imageExport"
+    ) {
       return null;
     }
-
-    const createExporter = (type: ExportType): ExportCB => async (
-      exportedElements,
-    ) => {
-      const fileHandle = await exportCanvas(type, exportedElements, appState, {
-        exportBackground: appState.exportBackground,
-        name: appState.name,
-        viewBackgroundColor: appState.viewBackgroundColor,
-      })
-        .catch(muteFSAbortError)
-        .catch((error) => {
-          console.error(error);
-          setAppState({ errorMessage: error.message });
-        });
-
-      if (
-        appState.exportEmbedScene &&
-        fileHandle &&
-        isImageFileHandle(fileHandle)
-      ) {
-        setAppState({ fileHandle });
-      }
-    };
 
     return (
       <ImageExportDialog
         elements={elements}
         appState={appState}
+        files={files}
         actionManager={actionManager}
-        onExportToPng={createExporter("png")}
-        onExportToSvg={createExporter("svg")}
-        onExportToClipboard={createExporter("clipboard")}
+        onExportImage={onExportImage}
+        onCloseRequest={() => setAppState({ openDialog: null })}
       />
     );
   };
 
-  const Separator = () => {
-    return <div style={{ width: ".625em" }} />;
-  };
-
-  const renderViewModeCanvasActions = () => {
-    return (
-      <Section
-        heading="canvasActions"
-        className={clsx("zen-mode-transition", {
-          "transition-left": zenModeEnabled,
-        })}
-      >
-        {/* the zIndex ensures this menu has higher stacking order,
-         see https://github.com/excalidraw/excalidraw/pull/1445 */}
-        <Island padding={2} style={{ zIndex: 1 }}>
-          <Stack.Col gap={4}>
-            <Stack.Row gap={1} justifyContent="space-between">
-              {renderJSONExportDialog()}
-              {renderImageExportDialog()}
-            </Stack.Row>
-          </Stack.Col>
-        </Island>
-      </Section>
-    );
-  };
   const renderCanvasActions = () => (
-    <Section
-      heading="canvasActions"
-      className={clsx("zen-mode-transition", {
-        "transition-left": zenModeEnabled,
-      })}
-    >
-      {/* the zIndex ensures this menu has higher stacking order,
-         see https://github.com/excalidraw/excalidraw/pull/1445 */}
-      <Island padding={2} style={{ zIndex: 1 }}>
-        <Stack.Col gap={4}>
-          <Stack.Row gap={1} justifyContent="space-between">
-            {actionManager.renderAction("clearCanvas")}
-            <Separator />
-            {actionManager.renderAction("loadScene")}
-            {renderJSONExportDialog()}
-            {renderImageExportDialog()}
-            <Separator />
-            {onCollabButtonClick && (
-              <CollabButton
-                isCollaborating={isCollaborating}
-                collaboratorCount={appState.collaborators.size}
-                onClick={onCollabButtonClick}
-              />
-            )}
-          </Stack.Row>
-          <BackgroundPickerAndDarkModeToggle
-            actionManager={actionManager}
-            appState={appState}
-            setAppState={setAppState}
-            showThemeBtn={showThemeBtn}
-          />
-          {appState.fileHandle && (
-            <>{actionManager.renderAction("saveToActiveFile")}</>
-          )}
-        </Stack.Col>
-      </Island>
-    </Section>
+    <div style={{ position: "relative" }}>
+      {/* wrapping to Fragment stops React from occasionally complaining
+                about identical Keys */}
+      <tunnels.MainMenuTunnel.Out />
+      {renderWelcomeScreen && <tunnels.WelcomeScreenMenuHintTunnel.Out />}
+    </div>
   );
 
   const renderSelectedShapeActions = () => (
     <Section
       heading="selectedShapeActions"
-      className={clsx("zen-mode-transition", {
-        "transition-left": zenModeEnabled,
+      className={clsx("selected-shape-actions zen-mode-transition", {
+        "transition-left": appState.zenModeEnabled,
       })}
     >
       <Island
         className={CLASSES.SHAPE_ACTIONS_MENU}
         padding={2}
         style={{
-          // we want to make sure this doesn't overflow so substracting 200
-          // which is approximately height of zoom footer and top left menu items with some buffer
-          // if active file name is displayed, subtracting 248 to account for its height
-          maxHeight: `${appState.height - (appState.fileHandle ? 248 : 200)}px`,
+          // we want to make sure this doesn't overflow so subtracting the
+          // approximate height of hamburgerMenu + footer
+          maxHeight: `${appState.height - 166}px`,
         }}
       >
         <SelectedShapeActions
           appState={appState}
           elements={elements}
           renderAction={actionManager.renderAction}
-          elementType={appState.elementType}
         />
       </Island>
     </Section>
   );
-
-  const closeLibrary = useCallback(
-    (event) => {
-      setAppState({ isLibraryOpen: false });
-    },
-    [setAppState],
-  );
-
-  const deselectItems = useCallback(() => {
-    setAppState({
-      selectedElementIds: {},
-      selectedGroupIds: {},
-    });
-  }, [setAppState]);
-
-  const libraryMenu = appState.isLibraryOpen ? (
-    <LibraryMenu
-      pendingElements={getSelectedElements(elements, appState)}
-      onClickOutside={closeLibrary}
-      onInsertShape={onInsertElements}
-      onAddToLibrary={deselectItems}
-      setAppState={setAppState}
-      libraryReturnUrl={libraryReturnUrl}
-      focusContainer={focusContainer}
-      library={library}
-      theme={appState.theme}
-      id={id}
-    />
-  ) : null;
 
   const renderFixedSideContainer = () => {
     const shouldRenderSelectedShapeActions = showSelectedShapeActions(
@@ -570,47 +242,91 @@ const LayerUI = ({
     return (
       <FixedSideContainer side="top">
         <div className="App-menu App-menu_top">
-          <Stack.Col
-            gap={4}
-            className={clsx({ "disable-pointerEvents": zenModeEnabled })}
-          >
-            {viewModeEnabled
-              ? renderViewModeCanvasActions()
-              : renderCanvasActions()}
+          <Stack.Col gap={6} className={clsx("App-menu_top__left")}>
+            {renderCanvasActions()}
             {shouldRenderSelectedShapeActions && renderSelectedShapeActions()}
           </Stack.Col>
-          {!viewModeEnabled && (
-            <Section heading="shapes">
-              {(heading) => (
-                <Stack.Col gap={4} align="start">
-                  <Stack.Row gap={1}>
-                    <LockButton
-                      zenModeEnabled={zenModeEnabled}
-                      checked={appState.elementLocked}
-                      onChange={onLockToggle}
-                      title={t("toolBar.lock")}
-                    />
-                    <Island
-                      padding={1}
-                      className={clsx({ "zen-mode": zenModeEnabled })}
+          {!appState.viewModeEnabled && (
+            <Section heading="shapes" className="shapes-section">
+              {(heading: React.ReactNode) => (
+                <div style={{ position: "relative" }}>
+                  {renderWelcomeScreen && (
+                    <tunnels.WelcomeScreenToolbarHintTunnel.Out />
+                  )}
+                  <Stack.Col gap={4} align="start">
+                    <Stack.Row
+                      gap={1}
+                      className={clsx("App-toolbar-container", {
+                        "zen-mode": appState.zenModeEnabled,
+                      })}
                     >
-                      <HintViewer appState={appState} elements={elements} />
-                      {heading}
-                      <Stack.Row gap={1}>
-                        <ShapesSwitcher
-                          canvas={canvas}
-                          elementType={appState.elementType}
-                          setAppState={setAppState}
+                      <Island
+                        padding={1}
+                        className={clsx("App-toolbar", {
+                          "zen-mode": appState.zenModeEnabled,
+                        })}
+                      >
+                        <HintViewer
+                          appState={appState}
+                          isMobile={device.editor.isMobile}
+                          device={device}
+                          app={app}
                         />
-                      </Stack.Row>
-                    </Island>
-                    <LibraryButton
-                      appState={appState}
-                      setAppState={setAppState}
-                    />
-                  </Stack.Row>
-                  {libraryMenu}
-                </Stack.Col>
+                        {heading}
+                        <Stack.Row gap={1}>
+                          <PenModeButton
+                            zenModeEnabled={appState.zenModeEnabled}
+                            checked={appState.penMode}
+                            onChange={() => onPenModeToggle(null)}
+                            title={t("toolBar.penMode")}
+                            penDetected={appState.penDetected}
+                          />
+                          <LockButton
+                            checked={appState.activeTool.locked}
+                            onChange={onLockToggle}
+                            title={t("toolBar.lock")}
+                          />
+
+                          <div className="App-toolbar__divider" />
+
+                          <HandButton
+                            checked={isHandToolActive(appState)}
+                            onChange={() => onHandToolToggle()}
+                            title={t("toolBar.hand")}
+                            isMobile
+                          />
+
+                          <ShapesSwitcher
+                            appState={appState}
+                            activeTool={appState.activeTool}
+                            UIOptions={UIOptions}
+                            app={app}
+                          />
+                        </Stack.Row>
+                      </Island>
+                      {isCollaborating && (
+                        <Island
+                          style={{
+                            marginLeft: 8,
+                            alignSelf: "center",
+                            height: "fit-content",
+                          }}
+                        >
+                          <LaserPointerButton
+                            title={t("toolBar.laser")}
+                            checked={
+                              appState.activeTool.type === TOOL_TYPE.laser
+                            }
+                            onChange={() =>
+                              app.setActiveTool({ type: TOOL_TYPE.laser })
+                            }
+                            isMobile
+                          />
+                        </Island>
+                      )}
+                    </Stack.Row>
+                  </Stack.Col>
+                </div>
               )}
             </Section>
           )}
@@ -618,121 +334,160 @@ const LayerUI = ({
             className={clsx(
               "layer-ui__wrapper__top-right zen-mode-transition",
               {
-                "transition-right": zenModeEnabled,
+                "transition-right": appState.zenModeEnabled,
               },
             )}
           >
-            <UserList>
-              {appState.collaborators.size > 0 &&
-                Array.from(appState.collaborators)
-                  // Collaborator is either not initialized or is actually the current user.
-                  .filter(([_, client]) => Object.keys(client).length !== 0)
-                  .map(([clientId, client]) => (
-                    <Tooltip
-                      label={client.username || "Unknown user"}
-                      key={clientId}
-                    >
-                      {actionManager.renderAction("goToCollaborator", {
-                        id: clientId,
-                      })}
-                    </Tooltip>
-                  ))}
-            </UserList>
-            {renderTopRightUI?.(isMobile, appState)}
+            <UserList collaborators={appState.collaborators} />
+            {renderTopRightUI?.(device.editor.isMobile, appState)}
+            {!appState.viewModeEnabled &&
+              // hide button when sidebar docked
+              (!isSidebarDocked ||
+                appState.openSidebar?.name !== DEFAULT_SIDEBAR.name) && (
+                <tunnels.DefaultSidebarTriggerTunnel.Out />
+              )}
           </div>
         </div>
       </FixedSideContainer>
     );
   };
 
-  const renderBottomAppMenu = () => {
+  const renderSidebars = () => {
     return (
-      <footer
-        role="contentinfo"
-        className="layer-ui__wrapper__footer App-menu App-menu_bottom"
-      >
-        <div
-          className={clsx(
-            "layer-ui__wrapper__footer-left zen-mode-transition",
-            {
-              "layer-ui__wrapper__footer-left--transition-left": zenModeEnabled,
-            },
-          )}
-        >
-          <Stack.Col gap={2}>
-            <Section heading="canvasActions">
-              <Island padding={1}>
-                <ZoomActions
-                  renderAction={actionManager.renderAction}
-                  zoom={appState.zoom}
-                />
-              </Island>
-              {!viewModeEnabled && (
-                <div
-                  className={clsx("undo-redo-buttons zen-mode-transition", {
-                    "layer-ui__wrapper__footer-left--transition-bottom": zenModeEnabled,
-                  })}
-                >
-                  {actionManager.renderAction("undo", { size: "small" })}
-                  {actionManager.renderAction("redo", { size: "small" })}
-                </div>
-              )}
-            </Section>
-          </Stack.Col>
-        </div>
-        <div
-          className={clsx(
-            "layer-ui__wrapper__footer-center zen-mode-transition",
-            {
-              "layer-ui__wrapper__footer-left--transition-bottom": zenModeEnabled,
-            },
-          )}
-        >
-          {renderCustomFooter?.(false, appState)}
-        </div>
-        <div
-          className={clsx(
-            "layer-ui__wrapper__footer-right zen-mode-transition",
-            {
-              "transition-right disable-pointerEvents": zenModeEnabled,
-            },
-          )}
-        >
-          {actionManager.renderAction("toggleShortcuts")}
-        </div>
-        <button
-          className={clsx("disable-zen-mode", {
-            "disable-zen-mode--visible": showExitZenModeBtn,
-          })}
-          onClick={toggleZenMode}
-        >
-          {t("buttons.exitZenMode")}
-        </button>
-      </footer>
+      <DefaultSidebar
+        __fallback
+        onDock={(docked) => {
+          trackEvent(
+            "sidebar",
+            `toggleDock (${docked ? "dock" : "undock"})`,
+            `(${device.editor.isMobile ? "mobile" : "desktop"})`,
+          );
+        }}
+      />
     );
   };
 
-  const dialogs = (
+  const isSidebarDocked = useAtomValue(isSidebarDockedAtom, jotaiScope);
+
+  const layerUIJSX = (
     <>
-      {appState.isLoading && <LoadingMessage />}
+      {/* ------------------------- tunneled UI ---------------------------- */}
+      {/* make sure we render host app components first so that we can detect
+          them first on initial render to optimize layout shift */}
+      {children}
+      {/* render component fallbacks. Can be rendered anywhere as they'll be
+          tunneled away. We only render tunneled components that actually
+        have defaults when host do not render anything. */}
+      <DefaultMainMenu UIOptions={UIOptions} />
+      <DefaultSidebar.Trigger
+        __fallback
+        icon={LibraryIcon}
+        title={capitalizeString(t("toolBar.library"))}
+        onToggle={(open) => {
+          if (open) {
+            trackEvent(
+              "sidebar",
+              `${DEFAULT_SIDEBAR.name} (open)`,
+              `button (${device.editor.isMobile ? "mobile" : "desktop"})`,
+            );
+          }
+        }}
+        tab={DEFAULT_SIDEBAR.defaultTab}
+      >
+        {t("toolBar.library")}
+      </DefaultSidebar.Trigger>
+      <DefaultOverwriteConfirmDialog />
+      {appState.openDialog?.name === "ttd" && <TTDDialog __fallback />}
+      {/* ------------------------------------------------------------------ */}
+
+      {appState.isLoading && <LoadingMessage delay={250} />}
       {appState.errorMessage && (
-        <ErrorDialog
-          message={appState.errorMessage}
-          onClose={() => setAppState({ errorMessage: null })}
-        />
+        <ErrorDialog onClose={() => setAppState({ errorMessage: null })}>
+          {appState.errorMessage}
+        </ErrorDialog>
       )}
-      {appState.showHelpDialog && (
-        <HelpDialog
-          onClose={() => {
-            setAppState({ showHelpDialog: false });
+      {eyeDropperState && !device.editor.isMobile && (
+        <EyeDropper
+          colorPickerType={eyeDropperState.colorPickerType}
+          onCancel={() => {
+            setEyeDropperState(null);
+          }}
+          onChange={(colorPickerType, color, selectedElements, { altKey }) => {
+            if (
+              colorPickerType !== "elementBackground" &&
+              colorPickerType !== "elementStroke"
+            ) {
+              return;
+            }
+
+            if (selectedElements.length) {
+              for (const element of selectedElements) {
+                mutateElement(
+                  element,
+                  {
+                    [altKey && eyeDropperState.swapPreviewOnAlt
+                      ? colorPickerType === "elementBackground"
+                        ? "strokeColor"
+                        : "backgroundColor"
+                      : colorPickerType === "elementBackground"
+                      ? "backgroundColor"
+                      : "strokeColor"]: color,
+                  },
+                  false,
+                );
+                ShapeCache.delete(element);
+              }
+              Scene.getScene(selectedElements[0])?.informMutation();
+            } else if (colorPickerType === "elementBackground") {
+              setAppState({
+                currentItemBackgroundColor: color,
+              });
+            } else {
+              setAppState({ currentItemStrokeColor: color });
+            }
+          }}
+          onSelect={(color, event) => {
+            setEyeDropperState((state) => {
+              return state?.keepOpenOnAlt && event.altKey ? state : null;
+            });
+            eyeDropperState?.onSelect?.(color, event);
           }}
         />
       )}
+      {appState.openDialog?.name === "help" && (
+        <HelpDialog
+          onClose={() => {
+            setAppState({ openDialog: null });
+          }}
+        />
+      )}
+      {appState.openDialog?.name === "settings" && (
+        <MagicSettings
+          openAIKey={openAIKey}
+          isPersisted={isOpenAIKeyPersisted}
+          onChange={onOpenAIAPIKeyChange}
+          onConfirm={(apiKey, shouldPersist) => {
+            const source =
+              appState.openDialog?.name === "settings"
+                ? appState.openDialog?.source
+                : "settings";
+            setAppState({ openDialog: null }, () => {
+              onMagicSettingsConfirm(apiKey, shouldPersist, source);
+            });
+          }}
+          onClose={() => {
+            setAppState({ openDialog: null });
+          }}
+        />
+      )}
+      <ActiveConfirmDialog />
+      <tunnels.OverwriteConfirmDialogTunnel.Out />
+      {renderImageExportDialog()}
+      {renderJSONExportDialog()}
       {appState.pasteDialog.shown && (
         <PasteChartDialog
           setAppState={setAppState}
           appState={appState}
-          onInsertChart={onInsertElements}
           onClose={() =>
             setAppState({
               pasteDialog: { shown: false, data: null },
@@ -740,75 +495,119 @@ const LayerUI = ({
           }
         />
       )}
+      {device.editor.isMobile && (
+        <MobileMenu
+          app={app}
+          appState={appState}
+          elements={elements}
+          actionManager={actionManager}
+          renderJSONExportDialog={renderJSONExportDialog}
+          renderImageExportDialog={renderImageExportDialog}
+          setAppState={setAppState}
+          onLockToggle={onLockToggle}
+          onHandToolToggle={onHandToolToggle}
+          onPenModeToggle={onPenModeToggle}
+          renderTopRightUI={renderTopRightUI}
+          renderCustomStats={renderCustomStats}
+          renderSidebars={renderSidebars}
+          device={device}
+          renderWelcomeScreen={renderWelcomeScreen}
+          UIOptions={UIOptions}
+        />
+      )}
+      {!device.editor.isMobile && (
+        <>
+          <div
+            className="layer-ui__wrapper"
+            style={
+              appState.openSidebar &&
+              isSidebarDocked &&
+              device.editor.canFitSidebar
+                ? { width: `calc(100% - ${LIBRARY_SIDEBAR_WIDTH}px)` }
+                : {}
+            }
+          >
+            {renderWelcomeScreen && <tunnels.WelcomeScreenCenterTunnel.Out />}
+            {renderFixedSideContainer()}
+            <Footer
+              appState={appState}
+              actionManager={actionManager}
+              showExitZenModeBtn={showExitZenModeBtn}
+              renderWelcomeScreen={renderWelcomeScreen}
+            />
+            {appState.showStats && (
+              <Stats
+                appState={appState}
+                setAppState={setAppState}
+                elements={elements}
+                onClose={() => {
+                  actionManager.executeAction(actionToggleStats);
+                }}
+                renderCustomStats={renderCustomStats}
+              />
+            )}
+            {appState.scrolledOutside && (
+              <button
+                className="scroll-back-to-content"
+                onClick={() => {
+                  setAppState((appState) => ({
+                    ...calculateScrollCenter(elements, appState),
+                  }));
+                }}
+              >
+                {t("buttons.scrollBackToContent")}
+              </button>
+            )}
+          </div>
+          {renderSidebars()}
+        </>
+      )}
     </>
   );
 
-  return isMobile ? (
-    <>
-      {dialogs}
-      <MobileMenu
-        appState={appState}
-        elements={elements}
-        actionManager={actionManager}
-        libraryMenu={libraryMenu}
-        renderJSONExportDialog={renderJSONExportDialog}
-        renderImageExportDialog={renderImageExportDialog}
-        setAppState={setAppState}
-        onCollabButtonClick={onCollabButtonClick}
-        onLockToggle={onLockToggle}
-        canvas={canvas}
-        isCollaborating={isCollaborating}
-        renderCustomFooter={renderCustomFooter}
-        viewModeEnabled={viewModeEnabled}
-        showThemeBtn={showThemeBtn}
-      />
-    </>
-  ) : (
-    <div
-      className={clsx("layer-ui__wrapper", {
-        "disable-pointerEvents":
-          appState.draggingElement ||
-          appState.resizingElement ||
-          (appState.editingElement && !isTextElement(appState.editingElement)),
-      })}
-    >
-      {dialogs}
-      {renderFixedSideContainer()}
-      {renderBottomAppMenu()}
-      {appState.scrolledOutside && (
-        <button
-          className="scroll-back-to-content"
-          onClick={() => {
-            setAppState({
-              ...calculateScrollCenter(elements, appState, canvas),
-            });
-          }}
-        >
-          {t("buttons.scrollBackToContent")}
-        </button>
-      )}
-    </div>
+  return (
+    <UIAppStateContext.Provider value={appState}>
+      <Provider scope={tunnels.jotaiScope}>
+        <TunnelsContext.Provider value={tunnels}>
+          {layerUIJSX}
+        </TunnelsContext.Provider>
+      </Provider>
+    </UIAppStateContext.Provider>
   );
 };
 
-const areEqual = (prev: LayerUIProps, next: LayerUIProps) => {
-  const getNecessaryObj = (appState: AppState): Partial<AppState> => {
-    const {
-      suggestedBindings,
-      startBoundElement: boundElement,
-      ...ret
-    } = appState;
-    return ret;
-  };
-  const prevAppState = getNecessaryObj(prev.appState);
-  const nextAppState = getNecessaryObj(next.appState);
+const stripIrrelevantAppStateProps = (appState: AppState): UIAppState => {
+  const {
+    suggestedBindings,
+    startBoundElement,
+    cursorButton,
+    scrollX,
+    scrollY,
+    ...ret
+  } = appState;
+  return ret;
+};
 
-  const keys = Object.keys(prevAppState) as (keyof Partial<AppState>)[];
+const areEqual = (prevProps: LayerUIProps, nextProps: LayerUIProps) => {
+  // short-circuit early
+  if (prevProps.children !== nextProps.children) {
+    return false;
+  }
+
+  const { canvas: _pC, appState: prevAppState, ...prev } = prevProps;
+  const { canvas: _nC, appState: nextAppState, ...next } = nextProps;
+
   return (
-    prev.renderCustomFooter === next.renderCustomFooter &&
-    prev.langCode === next.langCode &&
-    prev.elements === next.elements &&
-    keys.every((key) => prevAppState[key] === nextAppState[key])
+    isShallowEqual(
+      // asserting AppState because we're being passed the whole AppState
+      // but resolve to only the UI-relevant props
+      stripIrrelevantAppStateProps(prevAppState as AppState),
+      stripIrrelevantAppStateProps(nextAppState as AppState),
+      {
+        selectedElementIds: isShallowEqual,
+        selectedGroupIds: isShallowEqual,
+      },
+    ) && isShallowEqual(prev, next)
   );
 };
 

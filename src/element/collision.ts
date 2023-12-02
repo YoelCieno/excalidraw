@@ -23,13 +23,34 @@ import {
   ExcalidrawEllipseElement,
   NonDeleted,
   ExcalidrawFreeDrawElement,
+  ExcalidrawImageElement,
+  ExcalidrawLinearElement,
+  StrokeRoundness,
+  ExcalidrawFrameLikeElement,
+  ExcalidrawIframeLikeElement,
 } from "./types";
 
-import { getElementAbsoluteCoords, getCurvePathOps, Bounds } from "./bounds";
-import { Point } from "../types";
+import {
+  getElementAbsoluteCoords,
+  getCurvePathOps,
+  getRectangleBoxAbsoluteCoords,
+  RectangleBox,
+} from "./bounds";
+import { FrameNameBoundsCache, Point } from "../types";
 import { Drawable } from "roughjs/bin/core";
 import { AppState } from "../types";
-import { getShapeForElement } from "../renderer/renderElement";
+import {
+  hasBoundTextElement,
+  isFrameLikeElement,
+  isIframeLikeElement,
+  isImageElement,
+} from "./typeChecks";
+import { isTextElement } from ".";
+import { isTransparent } from "../utils";
+import { shouldShowBoundingBox } from "./transformHandles";
+import { getBoundTextElement } from "./textElement";
+import { Mutable } from "../utility-types";
+import { ShapeCache } from "../scene/ShapeCache";
 
 const isElementDraggableFromInside = (
   element: NonDeletedExcalidrawElement,
@@ -41,19 +62,20 @@ const isElementDraggableFromInside = (
   if (element.type === "freedraw") {
     return true;
   }
-
-  const isDraggableFromInside = element.backgroundColor !== "transparent";
-
+  const isDraggableFromInside =
+    !isTransparent(element.backgroundColor) ||
+    hasBoundTextElement(element) ||
+    isIframeLikeElement(element);
   if (element.type === "line") {
     return isDraggableFromInside && isPathALoop(element.points);
   }
-
-  return isDraggableFromInside;
+  return isDraggableFromInside || isImageElement(element);
 };
 
 export const hitTest = (
   element: NonDeletedExcalidrawElement,
   appState: AppState,
+  frameNameBoundsCache: FrameNameBoundsCache,
   x: number,
   y: number,
 ): boolean => {
@@ -61,42 +83,93 @@ export const hitTest = (
   const threshold = 10 / appState.zoom.value;
   const point: Point = [x, y];
 
-  if (isElementSelected(appState, element)) {
-    return isPointHittingElementBoundingBox(element, point, threshold);
+  if (
+    isElementSelected(appState, element) &&
+    shouldShowBoundingBox([element], appState)
+  ) {
+    return isPointHittingElementBoundingBox(
+      element,
+      point,
+      threshold,
+      frameNameBoundsCache,
+    );
   }
 
-  return isHittingElementNotConsideringBoundingBox(element, appState, point);
+  const boundTextElement = getBoundTextElement(element);
+  if (boundTextElement) {
+    const isHittingBoundTextElement = hitTest(
+      boundTextElement,
+      appState,
+      frameNameBoundsCache,
+      x,
+      y,
+    );
+    if (isHittingBoundTextElement) {
+      return true;
+    }
+  }
+  return isHittingElementNotConsideringBoundingBox(
+    element,
+    appState,
+    frameNameBoundsCache,
+    point,
+  );
 };
 
 export const isHittingElementBoundingBoxWithoutHittingElement = (
   element: NonDeletedExcalidrawElement,
   appState: AppState,
+  frameNameBoundsCache: FrameNameBoundsCache,
   x: number,
   y: number,
 ): boolean => {
   const threshold = 10 / appState.zoom.value;
 
+  // So that bound text element hit is considered within bounding box of container even if its outside actual bounding box of element
+  // eg for linear elements text can be outside the element bounding box
+  const boundTextElement = getBoundTextElement(element);
+  if (
+    boundTextElement &&
+    hitTest(boundTextElement, appState, frameNameBoundsCache, x, y)
+  ) {
+    return false;
+  }
+
   return (
-    !isHittingElementNotConsideringBoundingBox(element, appState, [x, y]) &&
-    isPointHittingElementBoundingBox(element, [x, y], threshold)
+    !isHittingElementNotConsideringBoundingBox(
+      element,
+      appState,
+      frameNameBoundsCache,
+      [x, y],
+    ) &&
+    isPointHittingElementBoundingBox(
+      element,
+      [x, y],
+      threshold,
+      frameNameBoundsCache,
+    )
   );
 };
 
-const isHittingElementNotConsideringBoundingBox = (
+export const isHittingElementNotConsideringBoundingBox = (
   element: NonDeletedExcalidrawElement,
   appState: AppState,
+  frameNameBoundsCache: FrameNameBoundsCache | null,
   point: Point,
 ): boolean => {
   const threshold = 10 / appState.zoom.value;
-
-  const check =
-    element.type === "text"
-      ? isStrictlyInside
-      : isElementDraggableFromInside(element)
-      ? isInsideCheck
-      : isNearCheck;
-
-  return hitTestPointAgainstElement({ element, point, threshold, check });
+  const check = isTextElement(element)
+    ? isStrictlyInside
+    : isElementDraggableFromInside(element)
+    ? isInsideCheck
+    : isNearCheck;
+  return hitTestPointAgainstElement({
+    element,
+    point,
+    threshold,
+    check,
+    frameNameBoundsCache,
+  });
 };
 
 const isElementSelected = (
@@ -104,11 +177,26 @@ const isElementSelected = (
   element: NonDeleted<ExcalidrawElement>,
 ) => appState.selectedElementIds[element.id];
 
-const isPointHittingElementBoundingBox = (
+export const isPointHittingElementBoundingBox = (
   element: NonDeleted<ExcalidrawElement>,
   [x, y]: Point,
   threshold: number,
+  frameNameBoundsCache: FrameNameBoundsCache | null,
 ) => {
+  // frames needs be checked differently so as to be able to drag it
+  // by its frame, whether it has been selected or not
+  // this logic here is not ideal
+  // TODO: refactor it later...
+  if (isFrameLikeElement(element)) {
+    return hitTestPointAgainstElement({
+      element,
+      point: [x, y],
+      threshold,
+      check: isInsideCheck,
+      frameNameBoundsCache,
+    });
+  }
+
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element);
   const elementCenterX = (x1 + x2) / 2;
   const elementCenterY = (y1 + y2) / 2;
@@ -136,7 +224,13 @@ export const bindingBorderTest = (
   const threshold = maxBindingGap(element, element.width, element.height);
   const check = isOutsideCheck;
   const point: Point = [x, y];
-  return hitTestPointAgainstElement({ element, point, threshold, check });
+  return hitTestPointAgainstElement({
+    element,
+    point,
+    threshold,
+    check,
+    frameNameBoundsCache: null,
+  });
 };
 
 export const maxBindingGap = (
@@ -156,11 +250,15 @@ type HitTestArgs = {
   point: Point;
   threshold: number;
   check: (distance: number, threshold: number) => boolean;
+  frameNameBoundsCache: FrameNameBoundsCache | null;
 };
 
 const hitTestPointAgainstElement = (args: HitTestArgs): boolean => {
   switch (args.element.type) {
     case "rectangle":
+    case "iframe":
+    case "embeddable":
+    case "image":
     case "text":
     case "diamond":
     case "ellipse":
@@ -186,6 +284,28 @@ const hitTestPointAgainstElement = (args: HitTestArgs): boolean => {
         "This should not happen, we need to investigate why it does.",
       );
       return false;
+    case "frame":
+    case "magicframe": {
+      // check distance to frame element first
+      if (
+        args.check(
+          distanceToBindableElement(args.element, args.point),
+          args.threshold,
+        )
+      ) {
+        return true;
+      }
+
+      const frameNameBounds = args.frameNameBoundsCache?.get(args.element);
+
+      if (frameNameBounds) {
+        return args.check(
+          distanceToRectangleBox(frameNameBounds, args.point),
+          args.threshold,
+        );
+      }
+      return false;
+    }
   }
 };
 
@@ -195,7 +315,12 @@ export const distanceToBindableElement = (
 ): number => {
   switch (element.type) {
     case "rectangle":
+    case "image":
     case "text":
+    case "iframe":
+    case "embeddable":
+    case "frame":
+    case "magicframe":
       return distanceToRectangle(element, point);
     case "diamond":
       return distanceToDiamond(element, point);
@@ -224,10 +349,21 @@ const distanceToRectangle = (
   element:
     | ExcalidrawRectangleElement
     | ExcalidrawTextElement
-    | ExcalidrawFreeDrawElement,
+    | ExcalidrawFreeDrawElement
+    | ExcalidrawImageElement
+    | ExcalidrawIframeLikeElement
+    | ExcalidrawFrameLikeElement,
   point: Point,
 ): number => {
   const [, pointRel, hwidth, hheight] = pointRelativeToElement(element, point);
+  return Math.max(
+    GAPoint.distanceToLine(pointRel, GALine.equation(0, 1, -hheight)),
+    GAPoint.distanceToLine(pointRel, GALine.equation(1, 0, -hwidth)),
+  );
+};
+
+const distanceToRectangleBox = (box: RectangleBox, point: Point): number => {
+  const [, pointRel, hwidth, hheight] = pointRelativeToDivElement(point, box);
   return Math.max(
     GAPoint.distanceToLine(pointRel, GALine.equation(0, 1, -hheight)),
     GAPoint.distanceToLine(pointRel, GALine.equation(1, 0, -hwidth)),
@@ -328,15 +464,15 @@ const hitTestFreeDrawElement = (
   let P: readonly [number, number];
 
   // For freedraw dots
-  if (element.points.length === 2) {
-    return (
-      distance2d(A[0], A[1], x, y) < threshold ||
-      distance2d(B[0], B[1], x, y) < threshold
-    );
+  if (
+    distance2d(A[0], A[1], x, y) < threshold ||
+    distance2d(B[0], B[1], x, y) < threshold
+  ) {
+    return true;
   }
 
   // For freedraw lines
-  for (let i = 1; i < element.points.length - 1; i++) {
+  for (let i = 0; i < element.points.length; i++) {
     const delta = [B[0] - A[0], B[1] - A[1]];
     const length = Math.hypot(delta[1], delta[0]);
 
@@ -358,14 +494,25 @@ const hitTestFreeDrawElement = (
     B = element.points[i + 1];
   }
 
+  const shape = ShapeCache.get(element);
+
+  // for filled freedraw shapes, support
+  // selecting from inside
+  if (shape && shape.sets.length) {
+    return element.fillStyle === "solid"
+      ? hitTestCurveInside(shape, x, y, "round")
+      : hitTestRoughShape(shape, x, y, threshold);
+  }
+
   return false;
 };
 
 const hitTestLinear = (args: HitTestArgs): boolean => {
   const { element, threshold } = args;
-  if (!getShapeForElement(element)) {
+  if (!ShapeCache.get(element)) {
     return false;
   }
+
   const [point, pointAbs, hwidth, hheight] = pointRelativeToElement(
     args.element,
     args.point,
@@ -380,11 +527,20 @@ const hitTestLinear = (args: HitTestArgs): boolean => {
   }
   const [relX, relY] = GAPoint.toTuple(point);
 
-  const shape = getShapeForElement(element) as Drawable[];
+  const shape = ShapeCache.get(element as ExcalidrawLinearElement);
+
+  if (!shape) {
+    return false;
+  }
 
   if (args.check === isInsideCheck) {
     const hit = shape.some((subshape) =>
-      hitTestCurveInside(subshape, relX, relY, element.strokeSharpness),
+      hitTestCurveInside(
+        subshape,
+        relX,
+        relY,
+        element.roundness ? "round" : "sharp",
+      ),
     );
     if (hit) {
       return true;
@@ -414,8 +570,8 @@ const pointRelativeToElement = (
   pointTuple: Point,
 ): [GA.Point, GA.Point, number, number] => {
   const point = GAPoint.from(pointTuple);
-  const elementCoords = getElementAbsoluteCoords(element);
-  const center = coordsCenter(elementCoords);
+  const [x1, y1, x2, y2] = getElementAbsoluteCoords(element);
+  const center = coordsCenter(x1, y1, x2, y2);
   // GA has angle orientation opposite to `rotate`
   const rotate = GATransform.rotation(center, element.angle);
   const pointRotated = GATransform.apply(rotate, point);
@@ -423,9 +579,26 @@ const pointRelativeToElement = (
   const pointRelToCenterAbs = GAPoint.abs(pointRelToCenter);
   const elementPos = GA.offset(element.x, element.y);
   const pointRelToPos = GA.sub(pointRotated, elementPos);
-  const [ax, ay, bx, by] = elementCoords;
-  const halfWidth = (bx - ax) / 2;
-  const halfHeight = (by - ay) / 2;
+  const halfWidth = (x2 - x1) / 2;
+  const halfHeight = (y2 - y1) / 2;
+  return [pointRelToPos, pointRelToCenterAbs, halfWidth, halfHeight];
+};
+
+const pointRelativeToDivElement = (
+  pointTuple: Point,
+  rectangle: RectangleBox,
+): [GA.Point, GA.Point, number, number] => {
+  const point = GAPoint.from(pointTuple);
+  const [x1, y1, x2, y2] = getRectangleBoxAbsoluteCoords(rectangle);
+  const center = coordsCenter(x1, y1, x2, y2);
+  const rotate = GATransform.rotation(center, rectangle.angle);
+  const pointRotated = GATransform.apply(rotate, point);
+  const pointRelToCenter = GA.sub(pointRotated, GADirection.from(center));
+  const pointRelToCenterAbs = GAPoint.abs(pointRelToCenter);
+  const elementPos = GA.offset(rectangle.x, rectangle.y);
+  const pointRelToPos = GA.sub(pointRotated, elementPos);
+  const halfWidth = (x2 - x1) / 2;
+  const halfHeight = (y2 - y1) / 2;
   return [pointRelToPos, pointRelToCenterAbs, halfWidth, halfHeight];
 };
 
@@ -446,8 +619,8 @@ export const pointInAbsoluteCoords = (
 const relativizationToElementCenter = (
   element: ExcalidrawElement,
 ): GA.Transform => {
-  const elementCoords = getElementAbsoluteCoords(element);
-  const center = coordsCenter(elementCoords);
+  const [x1, y1, x2, y2] = getElementAbsoluteCoords(element);
+  const center = coordsCenter(x1, y1, x2, y2);
   // GA has angle orientation opposite to `rotate`
   const rotate = GATransform.rotation(center, element.angle);
   const translate = GA.reverse(
@@ -456,8 +629,13 @@ const relativizationToElementCenter = (
   return GATransform.compose(rotate, translate);
 };
 
-const coordsCenter = ([ax, ay, bx, by]: Bounds): GA.Point => {
-  return GA.point((ax + bx) / 2, (ay + by) / 2);
+const coordsCenter = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): GA.Point => {
+  return GA.point((x1 + x2) / 2, (y1 + y2) / 2);
 };
 
 // The focus distance is the oriented ratio between the size of
@@ -484,15 +662,25 @@ export const determineFocusDistance = (
   const c = line[1];
   const mabs = Math.abs(m);
   const nabs = Math.abs(n);
+  let ret;
   switch (element.type) {
     case "rectangle":
+    case "image":
     case "text":
-      return c / (hwidth * (nabs + q * mabs));
+    case "iframe":
+    case "embeddable":
+    case "frame":
+    case "magicframe":
+      ret = c / (hwidth * (nabs + q * mabs));
+      break;
     case "diamond":
-      return mabs < nabs ? c / (nabs * hwidth) : c / (mabs * hheight);
+      ret = mabs < nabs ? c / (nabs * hwidth) : c / (mabs * hheight);
+      break;
     case "ellipse":
-      return c / (hwidth * Math.sqrt(n ** 2 + q ** 2 * m ** 2));
+      ret = c / (hwidth * Math.sqrt(n ** 2 + q ** 2 * m ** 2));
+      break;
   }
+  return ret || 0;
 };
 
 export const determineFocusPoint = (
@@ -503,8 +691,8 @@ export const determineFocusPoint = (
   adjecentPoint: Point,
 ): Point => {
   if (focus === 0) {
-    const elementCoords = getElementAbsoluteCoords(element);
-    const center = coordsCenter(elementCoords);
+    const [x1, y1, x2, y2] = getElementAbsoluteCoords(element);
+    const center = coordsCenter(x1, y1, x2, y2);
     return GAPoint.toTuple(center);
   }
   const relateToCenter = relativizationToElementCenter(element);
@@ -516,8 +704,13 @@ export const determineFocusPoint = (
   let point;
   switch (element.type) {
     case "rectangle":
+    case "image":
     case "text":
     case "diamond":
+    case "iframe":
+    case "embeddable":
+    case "frame":
+    case "magicframe":
       point = findFocusPointForRectangulars(element, focus, adjecentPointRel);
       break;
     case "ellipse":
@@ -565,8 +758,13 @@ const getSortedElementLineIntersections = (
   let intersections: GA.Point[];
   switch (element.type) {
     case "rectangle":
+    case "image":
     case "text":
     case "diamond":
+    case "iframe":
+    case "embeddable":
+    case "frame":
+    case "magicframe":
       const corners = getCorners(element);
       intersections = corners
         .flatMap((point, i) => {
@@ -598,15 +796,23 @@ const getSortedElementLineIntersections = (
 const getCorners = (
   element:
     | ExcalidrawRectangleElement
+    | ExcalidrawImageElement
     | ExcalidrawDiamondElement
-    | ExcalidrawTextElement,
+    | ExcalidrawTextElement
+    | ExcalidrawIframeLikeElement
+    | ExcalidrawFrameLikeElement,
   scale: number = 1,
 ): GA.Point[] => {
   const hx = (scale * element.width) / 2;
   const hy = (scale * element.height) / 2;
   switch (element.type) {
     case "rectangle":
+    case "image":
     case "text":
+    case "iframe":
+    case "embeddable":
+    case "frame":
+    case "magicframe":
       return [
         GA.point(hx, hy),
         GA.point(hx, -hy),
@@ -625,7 +831,7 @@ const getCorners = (
 
 // Returns intersection of `line` with `segment`, with `segment` moved by
 // `gap` in its polar direction.
-// If intersection conincides with second segment point returns empty array.
+// If intersection coincides with second segment point returns empty array.
 const intersectSegment = (
   line: GA.Line,
   segment: [GA.Point, GA.Point],
@@ -738,7 +944,12 @@ export const findFocusPointForEllipse = (
       orientation * py * Math.sqrt(Math.max(0, squares - a ** 2 * b ** 2))) /
     squares;
 
-  const n = (-m * px - 1) / py;
+  let n = (-m * px - 1) / py;
+
+  if (n === 0) {
+    // if zero {-0, 0}, fall back to a same-sign value in the similar range
+    n = (Object.is(n, -0) ? -1 : 1) * 0.01;
+  }
 
   const x = -(a ** 2 * m) / (n ** 2 * b ** 2 + m ** 2 * a ** 2);
   return GA.point(x, (-m * x - 1) / n);
@@ -747,8 +958,11 @@ export const findFocusPointForEllipse = (
 export const findFocusPointForRectangulars = (
   element:
     | ExcalidrawRectangleElement
+    | ExcalidrawImageElement
     | ExcalidrawDiamondElement
-    | ExcalidrawTextElement,
+    | ExcalidrawTextElement
+    | ExcalidrawIframeLikeElement
+    | ExcalidrawFrameLikeElement,
   // Between -1 and 1 for how far away should the focus point be relative
   // to the size of the element. Sign determines orientation.
   relativeDistance: number,
@@ -809,10 +1023,10 @@ const hitTestCurveInside = (
   drawable: Drawable,
   x: number,
   y: number,
-  sharpness: ExcalidrawElement["strokeSharpness"],
+  roundness: StrokeRoundness,
 ) => {
   const ops = getCurvePathOps(drawable);
-  const points: Point[] = [];
+  const points: Mutable<Point>[] = [];
   let odd = false; // select one line out of double lines
   for (const operation of ops) {
     if (operation.op === "move") {
@@ -826,13 +1040,17 @@ const hitTestCurveInside = (
         points.push([operation.data[2], operation.data[3]]);
         points.push([operation.data[4], operation.data[5]]);
       }
+    } else if (operation.op === "lineTo") {
+      if (odd) {
+        points.push([operation.data[0], operation.data[1]]);
+      }
     }
   }
   if (points.length >= 4) {
-    if (sharpness === "sharp") {
+    if (roundness === "sharp") {
       return isPointInPolygon(points, x, y);
     }
-    const polygonPoints = pointsOnBezierCurves(points as any, 10, 5);
+    const polygonPoints = pointsOnBezierCurves(points, 10, 5);
     return isPointInPolygon(polygonPoints, x, y);
   }
   return false;
@@ -856,7 +1074,7 @@ const hitTestRoughShape = (
     // move, bcurveTo, lineTo, and curveTo
     if (op === "move") {
       // change starting point
-      currentP = (data as unknown) as Point;
+      currentP = data as unknown as Point;
       // move operation does not draw anything; so, it always
       // returns false
     } else if (op === "bcurveTo") {
@@ -887,9 +1105,10 @@ const hitTestRoughShape = (
       // position of the previous operation
       return retVal;
     } else if (op === "lineTo") {
-      // TODO: Implement this
+      return hitTestCurveInside(drawable, x, y, "sharp");
     } else if (op === "qcurveTo") {
       // TODO: Implement this
+      console.warn("qcurveTo is not implemented yet");
     }
 
     return false;

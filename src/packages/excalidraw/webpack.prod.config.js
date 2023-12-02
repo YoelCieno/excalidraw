@@ -1,8 +1,10 @@
 const path = require("path");
-const TerserPlugin = require("terser-webpack-plugin");
-const BundleAnalyzerPlugin = require("webpack-bundle-analyzer")
-  .BundleAnalyzerPlugin;
+const webpack = require("webpack");
 const autoprefixer = require("autoprefixer");
+const { parseEnvVariables } = require("./env");
+const TerserPlugin = require("terser-webpack-plugin");
+const BundleAnalyzerPlugin =
+  require("webpack-bundle-analyzer").BundleAnalyzerPlugin;
 
 module.exports = {
   mode: "production",
@@ -11,10 +13,11 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, "dist"),
-    library: "Excalidraw",
+    library: "ExcalidrawLib",
     libraryTarget: "umd",
     filename: "[name].js",
     chunkFilename: "excalidraw-assets/[name]-[contenthash].js",
+    assetModuleFilename: "excalidraw-assets/[name][ext]",
     publicPath: "",
   },
   resolve: {
@@ -41,10 +44,22 @@ module.exports = {
           "sass-loader",
         ],
       },
+      // So that type module works with webpack
+      // https://github.com/webpack/webpack/issues/11467#issuecomment-691873586
+      {
+        test: /\.m?js/,
+        resolve: {
+          fullySpecified: false,
+        },
+      },
       {
         test: /\.(ts|tsx|js|jsx|mjs)$/,
-        exclude: /node_modules/,
+        exclude:
+          /node_modules[\\/](?!(browser-fs-access|canvas-roundrect-polyfill))/,
         use: [
+          {
+            loader: "import-meta-loader",
+          },
           {
             loader: "ts-loader",
             options: {
@@ -57,14 +72,11 @@ module.exports = {
             options: {
               presets: [
                 "@babel/preset-env",
-                "@babel/preset-react",
+                ["@babel/preset-react", { runtime: "automatic" }],
                 "@babel/preset-typescript",
               ],
               plugins: [
-                "@babel/plugin-proposal-object-rest-spread",
-                "@babel/plugin-transform-arrow-functions",
                 "transform-class-properties",
-                "@babel/plugin-transform-async-to-generator",
                 "@babel/plugin-transform-runtime",
               ],
             },
@@ -73,15 +85,7 @@ module.exports = {
       },
       {
         test: /\.(woff|woff2|eot|ttf|otf)$/,
-        use: [
-          {
-            loader: "file-loader",
-            options: {
-              name: "[name].[ext]",
-              outputPath: "excalidraw-assets",
-            },
-          },
-        ],
+        type: "asset/resource",
       },
     ],
   },
@@ -104,6 +108,11 @@ module.exports = {
   },
   plugins: [
     ...(process.env.ANALYZER === "true" ? [new BundleAnalyzerPlugin()] : []),
+    new webpack.DefinePlugin({
+      "process.env": parseEnvVariables(
+        path.resolve(__dirname, "../../../.env.production"),
+      ),
+    }),
   ],
   externals: {
     react: {

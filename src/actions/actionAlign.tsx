@@ -1,4 +1,3 @@
-import React from "react";
 import { alignElements, Alignment } from "../align";
 import {
   AlignBottomIcon,
@@ -9,43 +8,58 @@ import {
   CenterVerticallyIcon,
 } from "../components/icons";
 import { ToolButton } from "../components/ToolButton";
-import { getElementMap, getNonDeletedElements } from "../element";
+import { getNonDeletedElements } from "../element";
+import { isFrameLikeElement } from "../element/typeChecks";
 import { ExcalidrawElement } from "../element/types";
+import { updateFrameMembershipOfSelectedElements } from "../frame";
 import { t } from "../i18n";
 import { KEYS } from "../keys";
-import { getSelectedElements, isSomeElementSelected } from "../scene";
-import { AppState } from "../types";
-import { getShortcutKey } from "../utils";
+import { isSomeElementSelected } from "../scene";
+import { AppClassProperties, AppState } from "../types";
+import { arrayToMap, getShortcutKey } from "../utils";
 import { register } from "./register";
 
-const enableActionGroup = (
+const alignActionsPredicate = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
-) => getSelectedElements(getNonDeletedElements(elements), appState).length > 1;
+  _: unknown,
+  app: AppClassProperties,
+) => {
+  const selectedElements = app.scene.getSelectedElements(appState);
+  return (
+    selectedElements.length > 1 &&
+    // TODO enable aligning frames when implemented properly
+    !selectedElements.some((el) => isFrameLikeElement(el))
+  );
+};
 
 const alignSelectedElements = (
   elements: readonly ExcalidrawElement[],
   appState: Readonly<AppState>,
+  app: AppClassProperties,
   alignment: Alignment,
 ) => {
-  const selectedElements = getSelectedElements(
-    getNonDeletedElements(elements),
-    appState,
-  );
+  const selectedElements = app.scene.getSelectedElements(appState);
 
   const updatedElements = alignElements(selectedElements, alignment);
 
-  const updatedElementsMap = getElementMap(updatedElements);
+  const updatedElementsMap = arrayToMap(updatedElements);
 
-  return elements.map((element) => updatedElementsMap[element.id] || element);
+  return updateFrameMembershipOfSelectedElements(
+    elements.map((element) => updatedElementsMap.get(element.id) || element),
+    appState,
+    app,
+  );
 };
 
 export const actionAlignTop = register({
   name: "alignTop",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  predicate: alignActionsPredicate,
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: alignSelectedElements(elements, appState, {
+      elements: alignSelectedElements(elements, appState, app, {
         position: "start",
         axis: "y",
       }),
@@ -54,11 +68,11 @@ export const actionAlignTop = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_UP,
-  PanelComponent: ({ elements, appState, updateData }) => (
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!alignActionsPredicate(elements, appState, null, app)}
       type="button"
-      icon={<AlignTopIcon theme={appState.theme} />}
+      icon={AlignTopIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignTop")} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Up",
@@ -71,10 +85,12 @@ export const actionAlignTop = register({
 
 export const actionAlignBottom = register({
   name: "alignBottom",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  predicate: alignActionsPredicate,
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: alignSelectedElements(elements, appState, {
+      elements: alignSelectedElements(elements, appState, app, {
         position: "end",
         axis: "y",
       }),
@@ -83,11 +99,11 @@ export const actionAlignBottom = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_DOWN,
-  PanelComponent: ({ elements, appState, updateData }) => (
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!alignActionsPredicate(elements, appState, null, app)}
       type="button"
-      icon={<AlignBottomIcon theme={appState.theme} />}
+      icon={AlignBottomIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignBottom")} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Down",
@@ -100,10 +116,12 @@ export const actionAlignBottom = register({
 
 export const actionAlignLeft = register({
   name: "alignLeft",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  predicate: alignActionsPredicate,
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: alignSelectedElements(elements, appState, {
+      elements: alignSelectedElements(elements, appState, app, {
         position: "start",
         axis: "x",
       }),
@@ -112,11 +130,11 @@ export const actionAlignLeft = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_LEFT,
-  PanelComponent: ({ elements, appState, updateData }) => (
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!alignActionsPredicate(elements, appState, null, app)}
       type="button"
-      icon={<AlignLeftIcon theme={appState.theme} />}
+      icon={AlignLeftIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignLeft")} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Left",
@@ -129,10 +147,12 @@ export const actionAlignLeft = register({
 
 export const actionAlignRight = register({
   name: "alignRight",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  predicate: alignActionsPredicate,
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: alignSelectedElements(elements, appState, {
+      elements: alignSelectedElements(elements, appState, app, {
         position: "end",
         axis: "x",
       }),
@@ -141,11 +161,11 @@ export const actionAlignRight = register({
   },
   keyTest: (event) =>
     event[KEYS.CTRL_OR_CMD] && event.shiftKey && event.key === KEYS.ARROW_RIGHT,
-  PanelComponent: ({ elements, appState, updateData }) => (
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!alignActionsPredicate(elements, appState, null, app)}
       type="button"
-      icon={<AlignRightIcon theme={appState.theme} />}
+      icon={AlignRightIcon}
       onClick={() => updateData(null)}
       title={`${t("labels.alignRight")} — ${getShortcutKey(
         "CtrlOrCmd+Shift+Right",
@@ -158,21 +178,23 @@ export const actionAlignRight = register({
 
 export const actionAlignVerticallyCentered = register({
   name: "alignVerticallyCentered",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  predicate: alignActionsPredicate,
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: alignSelectedElements(elements, appState, {
+      elements: alignSelectedElements(elements, appState, app, {
         position: "center",
         axis: "y",
       }),
       commitToHistory: true,
     };
   },
-  PanelComponent: ({ elements, appState, updateData }) => (
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!alignActionsPredicate(elements, appState, null, app)}
       type="button"
-      icon={<CenterVerticallyIcon theme={appState.theme} />}
+      icon={CenterVerticallyIcon}
       onClick={() => updateData(null)}
       title={t("labels.centerVertically")}
       aria-label={t("labels.centerVertically")}
@@ -183,21 +205,23 @@ export const actionAlignVerticallyCentered = register({
 
 export const actionAlignHorizontallyCentered = register({
   name: "alignHorizontallyCentered",
-  perform: (elements, appState) => {
+  trackEvent: { category: "element" },
+  predicate: alignActionsPredicate,
+  perform: (elements, appState, _, app) => {
     return {
       appState,
-      elements: alignSelectedElements(elements, appState, {
+      elements: alignSelectedElements(elements, appState, app, {
         position: "center",
         axis: "x",
       }),
       commitToHistory: true,
     };
   },
-  PanelComponent: ({ elements, appState, updateData }) => (
+  PanelComponent: ({ elements, appState, updateData, app }) => (
     <ToolButton
-      hidden={!enableActionGroup(elements, appState)}
+      hidden={!alignActionsPredicate(elements, appState, null, app)}
       type="button"
-      icon={<CenterHorizontallyIcon theme={appState.theme} />}
+      icon={CenterHorizontallyIcon}
       onClick={() => updateData(null)}
       title={t("labels.centerHorizontally")}
       aria-label={t("labels.centerHorizontally")}
