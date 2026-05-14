@@ -41,10 +41,7 @@ const config = {
           showLastUpdateTime: true,
         },
         theme: {
-          customCss: [
-            require.resolve("./src/css/custom.scss"),
-            require.resolve("../src/packages/excalidraw/example/App.scss"),
-          ],
+          customCss: [require.resolve("./src/css/custom.scss")],
         },
       }),
     ],
@@ -69,7 +66,7 @@ const config = {
             label: "Docs",
           },
           {
-            to: "https://blog.excalidraw.com",
+            to: "https://plus.excalidraw.com/blog",
             label: "Blog",
             position: "left",
           },
@@ -100,8 +97,8 @@ const config = {
                 href: "https://discord.gg/UexuTaE",
               },
               {
-                label: "Twitter",
-                href: "https://twitter.com/excalidraw",
+                label: "𝕏",
+                href: "https://x.com/excalidraw",
               },
               {
                 label: "Linkedin",
@@ -114,7 +111,7 @@ const config = {
             items: [
               {
                 label: "Blog",
-                to: "https://blog.excalidraw.com",
+                to: "https://plus.excalidraw.com/blog",
               },
               {
                 label: "GitHub",
@@ -152,6 +149,29 @@ const config = {
         systemvars: true,
       },
     ],
+    function () {
+      return {
+        name: "disable-fully-specified-error",
+        configureWebpack() {
+          return {
+            module: {
+              rules: [
+                {
+                  test: /\.m?js$/,
+                  resolve: {
+                    fullySpecified: false,
+                  },
+                },
+              ],
+            },
+            optimization: {
+              // disable terser minification
+              minimize: false,
+            },
+          };
+        },
+      };
+    },
   ],
 };
 
